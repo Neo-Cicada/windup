@@ -1,0 +1,152 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-nunito), system-ui, sans-serif;
+  color: #3a2e27;
+  background: #f3e3c3;
+}
+
+a {
+  color: #3e8fc4;
+  text-decoration: none;
+}
+a:hover {
+  color: #2c6e9c;
+}
+
+button,
+input {
+  font-family: inherit;
+}
+
+@keyframes cfall {
+  0% {
+    transform: translateY(-30px) rotate(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(108vh) rotate(760deg);
+    opacity: 0.85;
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes wob {
+  0%,
+  100% {
+    transform: rotate(-3deg);
+  }
+  50% {
+    transform: rotate(3deg);
+  }
+}
+@keyframes floaty {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+@keyframes floaty2 {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-14px);
+  }
+}
+@keyframes pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-thumb {
+  background: #c9a96a;
+  border-radius: 8px;
+  border: 3px solid #f3e3c3;
+}
+
+/* Chunky "push" button: rests on a hard drop-shadow, sinks in on press. */
+.pushbtn {
+  cursor: pointer;
+  box-shadow: 0 var(--sy) 0 var(--sc);
+  transition: transform 0.04s ease, box-shadow 0.04s ease;
+}
+.pushbtn:active {
+  transform: translateY(var(--pt));
+  box-shadow: 0 var(--psy) 0 var(--sc);
+}
+
+/* Inputs get a warm focus ring, matching the design's style-focus. */
+.toy-input {
+  outline: none;
+}
+.toy-input:focus {
+  box-shadow: 0 0 0 3px #f7c948;
+}
+
+/* Nav links: hidden on small screens, shown from tablet up (matches design intent) */
+.nav-links {
+  display: none;
+  align-items: center;
+  gap: 26px;
+  font-weight: 700;
+  font-size: 14px;
+  color: #5c4a3c;
+}
+.nav-links a {
+  color: #5c4a3c;
+}
+@media (min-width: 820px) {
+  .nav-links {
+    display: flex;
+  }
+}
+
+/* Responsive collapse of the two-column grids on narrow screens */
+@media (max-width: 860px) {
+  .hero-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  .steps-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .auth-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .auth-brand {
+    display: none !important;
+  }
+}
