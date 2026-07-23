@@ -84,6 +84,15 @@ input {
     opacity: 1;
   }
 }
+@keyframes tick {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
 
 ::-webkit-scrollbar {
   width: 12px;
@@ -148,5 +157,68 @@ input {
   }
   .auth-brand {
     display: none !important;
+  }
+}
+
+/* ===== Academy (dashboard) ===== */
+
+/* Generic "chunky tap" feedback for the academy's custom buttons/cards */
+.tap {
+  cursor: pointer;
+  transition: transform 0.06s ease, box-shadow 0.06s ease;
+}
+.tap:active {
+  transform: translateY(3px);
+}
+
+/* Account inputs get a blue focus ring, matching the design */
+.acct-input {
+  outline: none;
+}
+.acct-input:focus {
+  box-shadow: 0 0 0 3px #4fb0e5;
+}
+
+/* Collapse the academy's two-column layouts on narrow viewports */
+@media (max-width: 960px) {
+  .acad-dash,
+  .acad-problem,
+  .acad-analytics-top {
+    grid-template-columns: 1fr !important;
+  }
+  .acad-hero {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+  .acad-hero-side {
+    width: 100% !important;
+  }
+  .acad-acct-grid,
+  .acad-plan-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Let the whole shell scroll and shrink the sidebar on small screens */
+@media (max-width: 720px) {
+  .acad-shell {
+    flex-direction: column;
+  }
+  .acad-shell aside {
+    width: 100% !important;
+    height: auto !important;
+    position: static !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    border-right: 0 !important;
+    border-bottom: 4px solid #2e2620 !important;
+    gap: 8px !important;
+  }
+  .acad-shell aside > div:last-child {
+    display: none !important;
+  }
+  .acad-coverage-row {
+    flex-wrap: wrap;
   }
 }
