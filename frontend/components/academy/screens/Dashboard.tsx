@@ -1,8 +1,10 @@
-import { FREDOKA, QUESTS, buildShelves } from "../data";
+import { FREDOKA, buildShelves } from "../data";
 import { BuddyAvatar, SprocketBot } from "../illustrations";
+import type { DailyQuest } from "@/lib/types";
 
 type Props = {
   toyName: string;
+  traineeNo: string;
   avBody: string;
   avHead: string;
   avAccent: string;
@@ -11,8 +13,11 @@ type Props = {
   solved: number;
   unaidedRate: number;
   badgesLabel: string;
-  rank: number;
-  onOpenProblem: () => void;
+  rank: number | null;
+  sprocketMessage: string;
+  quests: DailyQuest[];
+  questsDone: number;
+  onOpenProblem: (slug: string) => void;
 };
 
 const card = {
@@ -22,9 +27,8 @@ const card = {
   boxShadow: "0 8px 0 #E0CBA0",
 } as const;
 
-export function Dashboard({ toyName, avBody, avHead, avAccent, ready, level, solved, unaidedRate, badgesLabel, rank, onOpenProblem }: Props) {
+export function Dashboard({ toyName, traineeNo, avBody, avHead, avAccent, ready, level, solved, unaidedRate, badgesLabel, rank, sprocketMessage, quests, questsDone, onOpenProblem }: Props) {
   const shelves = buildShelves(level);
-  const questsDone = QUESTS.filter((q) => q.pct >= 100).length;
 
   return (
     <div data-screen-label="Dashboard" style={{ display: "grid", gridTemplateColumns: "1.55fr 1fr", gap: 22, maxWidth: 1180, margin: "0 auto" }} className="acad-dash">
@@ -50,19 +54,17 @@ export function Dashboard({ toyName, avBody, avHead, avAccent, ready, level, sol
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "inline-block", background: "#FDECEC", border: "2px solid #EF5B54", color: "#D8443D", fontWeight: 800, fontSize: 11, padding: "4px 11px", borderRadius: 20, marginBottom: 9 }}>
-            TRAINEE TOY · No. 0471
+            TRAINEE TOY · No. {traineeNo}
           </div>
           <h1 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 30, margin: "0 0 4px" }}>Welcome back, {toyName}!</h1>
-          <p style={{ margin: "0 0 16px", color: "#6B5A4A", fontSize: 14.5, maxWidth: 460 }}>
-            You&apos;re <b>{ready}% Interview&nbsp;Ready</b>. Two quests left today to keep your streak alive — wind yourself up and let&apos;s climb a shelf.
-          </p>
+          <p style={{ margin: "0 0 16px", color: "#6B5A4A", fontSize: 14.5, maxWidth: 460 }}>{sprocketMessage}</p>
           <div style={{ maxWidth: 460 }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 800, color: "#B0794A", marginBottom: 5 }}>
               <span>INTERVIEW READY</span>
               <span>{ready}%</span>
             </div>
             <div style={{ height: 18, background: "#EFE1C2", border: "3px solid #2E2620", borderRadius: 11, overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${ready}%`, background: "repeating-linear-gradient(45deg,#EF5B54 0 10px,#E2504A 10px 20px)" }} />
+              <div style={{ height: "100%", width: `${ready}%`, background: "repeating-linear-gradient(45deg,#EF5B54 0 10px,#E2504A 10px 20px)", transition: "width .4s ease" }} />
             </div>
           </div>
         </div>
@@ -70,7 +72,7 @@ export function Dashboard({ toyName, avBody, avHead, avAccent, ready, level, sol
         {/* sprocket bubble */}
         <div className="acad-hero-side" style={{ flex: "none", width: 170, alignSelf: "stretch", display: "flex", flexDirection: "column", justifyContent: "center", gap: 12 }}>
           <div style={{ position: "relative", background: "#EAF6FD", border: "3px solid #2E2620", borderRadius: 16, padding: "11px 13px", fontSize: 12.5, fontWeight: 700, color: "#2C6E9C", lineHeight: 1.35 }}>
-            Nice charge! Try the marble run next — you&apos;re one hop from Lv&nbsp;{level + 1}.
+            Keep winding — Lv&nbsp;{level + 1} is one shelf away.
             <div style={{ position: "absolute", bottom: -11, left: 26, width: 14, height: 14, background: "#EAF6FD", borderRight: "3px solid #2E2620", borderBottom: "3px solid #2E2620", transform: "rotate(45deg)" }} />
           </div>
           <div style={{ display: "flex", justifyContent: "center" }}>
@@ -83,11 +85,16 @@ export function Dashboard({ toyName, avBody, avHead, avAccent, ready, level, sol
       <section style={{ ...card, padding: "22px 24px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
           <h2 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 21, margin: 0 }}>Today&apos;s Quests</h2>
-          <span style={{ fontSize: 12, fontWeight: 800, color: "#B0794A" }}>{questsDone} / {QUESTS.length} done</span>
+          <span style={{ fontSize: 12, fontWeight: 800, color: "#B0794A" }}>{questsDone} / {quests.length} done</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 13 }}>
-          {QUESTS.map((q) => (
-            <div key={q.name} style={{ display: "flex", alignItems: "center", gap: 15, background: "#FCF6E9", border: "3px solid #2E2620", borderRadius: 18, padding: "12px 14px" }}>
+          {quests.length === 0 && (
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#9B7B5B" }}>
+              No quests on the board yet — Sprocket rolls a fresh set each morning.
+            </p>
+          )}
+          {quests.map((q) => (
+            <div key={q.id} style={{ display: "flex", alignItems: "center", gap: 15, background: "#FCF6E9", border: "3px solid #2E2620", borderRadius: 18, padding: "12px 14px" }}>
               <span style={{ width: 34, height: 34, flex: "none", borderRadius: 11, border: "3px solid #2E2620", background: q.color }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
@@ -95,12 +102,12 @@ export function Dashboard({ toyName, avBody, avHead, avAccent, ready, level, sol
                   <span style={{ fontSize: 11, fontWeight: 800, color: "#9B7B5B" }}>{q.zone}</span>
                 </div>
                 <div style={{ marginTop: 6, height: 11, background: "#EFE1C2", border: "2px solid #2E2620", borderRadius: 7, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${q.pct}%`, background: q.color }} />
+                  <div style={{ height: "100%", width: `${q.pct}%`, background: q.color, transition: "width .35s ease" }} />
                 </div>
               </div>
               <div style={{ fontSize: 12, fontWeight: 800, color: "#B0794A", width: 34, textAlign: "right" }}>{q.pct}%</div>
-              <button className="tap" onClick={onOpenProblem} style={{ border: "3px solid #2E2620", borderRadius: 13, background: "#6FBF73", color: "#173d19", fontWeight: 700, fontSize: 13, padding: "8px 15px", boxShadow: "0 4px 0 #2E2620", fontFamily: FREDOKA }}>
-                Play
+              <button className="tap" onClick={() => onOpenProblem(q.slug)} style={{ border: "3px solid #2E2620", borderRadius: 13, background: q.completed ? "#D9C4A0" : "#6FBF73", color: q.completed ? "#5C4A3C" : "#173d19", fontWeight: 700, fontSize: 13, padding: "8px 15px", boxShadow: "0 4px 0 #2E2620", fontFamily: FREDOKA }}>
+                {q.completed ? "Replay" : "Play"}
               </button>
             </div>
           ))}
@@ -144,7 +151,7 @@ export function Dashboard({ toyName, avBody, avHead, avAccent, ready, level, sol
             <div style={{ fontSize: 11, fontWeight: 800, color: "#D8443D" }}>MERIT BADGES</div>
           </div>
           <div style={{ background: "#FDF3D6", border: "3px solid #2E2620", borderRadius: 18, padding: 15, boxShadow: "0 5px 0 #EBD9A6" }}>
-            <div style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 26 }}>#{rank}</div>
+            <div style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 26 }}>{rank === null ? "—" : `#${rank}`}</div>
             <div style={{ fontSize: 11, fontWeight: 800, color: "#B0794A" }}>SHELF OF FAME</div>
           </div>
         </div>

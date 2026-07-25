@@ -1,35 +1,45 @@
-import { FREDOKA, LEADERS, buildPodium } from "../data";
+import { FREDOKA, buildPodium } from "../data";
+import type { LeaderboardSummary } from "@/lib/types";
 
-export function Leaderboard() {
-  const podium = buildPodium();
+type Props = { data: LeaderboardSummary };
+
+export function Leaderboard({ data }: Props) {
+  const podium = buildPodium(data.podium);
 
   return (
     <div data-screen-label="Leaderboard" style={{ maxWidth: 920, margin: "0 auto" }}>
       <div style={{ textAlign: "center", marginBottom: 26 }}>
         <h1 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 28, margin: 0 }}>The Shelf of Fame</h1>
-        <p style={{ margin: "4px 0 0", fontSize: 13, color: "#8B7358", fontWeight: 700 }}>The most wound-up toys in the playroom this week.</p>
+        <p style={{ margin: "4px 0 0", fontSize: 13, color: "#8B7358", fontWeight: 700 }}>
+          The most wound-up toys in the playroom
+          {data.your_rank !== null ? ` — you're sitting at #${data.your_rank}.` : "."}
+        </p>
       </div>
 
       {/* podium */}
-      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 16, marginBottom: 30 }}>
-        {podium.map((p) => (
-          <div key={p.rank} style={{ flex: 1, maxWidth: 200, display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <div style={{ width: 56, height: 56, borderRadius: 16, border: "4px solid #2E2620", background: p.color, boxShadow: "0 4px 0 #2E2620", marginBottom: 8 }} />
-            <div style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 15, marginBottom: 2 }}>{p.name}</div>
-            <div style={{ fontSize: 11, fontWeight: 800, color: "#B0794A", marginBottom: 8 }}>{p.xp} charge</div>
-            <div style={{ width: "100%", height: p.height, border: "4px solid #2E2620", borderBottom: 0, borderRadius: "16px 16px 0 0", background: p.medal, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 8, fontFamily: FREDOKA, fontWeight: 700, fontSize: 24, color: "#2E2620" }}>
-              {p.rank}
-            </div>
+      {podium.length > 0 && (
+        <>
+          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 16, marginBottom: 30 }}>
+            {podium.map((p) => (
+              <div key={p.rank} style={{ flex: 1, maxWidth: 200, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                <div style={{ width: 56, height: 56, borderRadius: 16, border: "4px solid #2E2620", background: p.color, boxShadow: "0 4px 0 #2E2620", marginBottom: 8 }} />
+                <div style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 15, marginBottom: 2, textAlign: "center" }}>{p.name}</div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: "#B0794A", marginBottom: 8 }}>{p.xp} charge</div>
+                <div style={{ width: "100%", height: p.height, border: "4px solid #2E2620", borderBottom: 0, borderRadius: "16px 16px 0 0", background: p.medal, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 8, fontFamily: FREDOKA, fontWeight: 700, fontSize: 24, color: "#2E2620" }}>
+                  {p.rank}
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {/* wood shelf under podium */}
-      <div style={{ height: 20, border: "4px solid #2E2620", borderRadius: 10, background: "repeating-linear-gradient(90deg,#C9A96A 0 20px,#BE9C5C 20px 23px)", marginBottom: 26, boxShadow: "0 6px 0 #A98544" }} />
+          {/* wood shelf under podium */}
+          <div style={{ height: 20, border: "4px solid #2E2620", borderRadius: 10, background: "repeating-linear-gradient(90deg,#C9A96A 0 20px,#BE9C5C 20px 23px)", marginBottom: 26, boxShadow: "0 6px 0 #A98544" }} />
+        </>
+      )}
 
       {/* full ranking */}
       <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
-        {LEADERS.map((l) => (
+        {data.leaders.map((l) => (
           <div
             key={l.rank}
             style={{

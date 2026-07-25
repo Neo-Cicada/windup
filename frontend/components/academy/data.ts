@@ -1,5 +1,10 @@
-// Static definitions and pure derivations for the Academy dashboard.
-// Mirrors the data model in the "Toybox Academy" design file.
+// Presentation constants and pure derivations for the Academy dashboard.
+//
+// Every number the toy actually earns now comes from the API (see lib/types.ts) — what
+// lives here is styling: which colours a pegboard row lights up in, how tall a podium
+// step is, where the climbing shelves sit.
+
+import type { Leader } from "@/lib/types";
 
 export const FREDOKA = "var(--font-fredoka), system-ui, sans-serif";
 export const DARK = "#2E2620";
@@ -44,29 +49,6 @@ export const TITLES: Record<ScreenKey, string> = {
   workshop: "Profile",
 };
 
-export const LEVEL_NAMES = [
-  "",
-  "Freshly Unboxed",
-  "Wind-Up Rookie",
-  "Shelf Climber",
-  "Spring-Loaded",
-  "Top-Shelf Talent",
-  "Legendary Toy",
-];
-
-export function levelName(level: number): string {
-  return LEVEL_NAMES[Math.min(level, 6)];
-}
-
-// ---- Today's quests
-export type Quest = { name: string; zone: string; pct: number; color: string };
-
-export const QUESTS: Quest[] = [
-  { name: "Two Sum", zone: "BUILDING BLOCKS", pct: 60, color: "#6FBF73" },
-  { name: "Reverse Linked List", zone: "MARBLE RUN", pct: 25, color: "#4FB0E5" },
-  { name: "Number of Islands", zone: "BOARD GAME", pct: 0, color: "#EF5B54" },
-];
-
 // ---- Climbing shelves (top row first)
 export type Shelf = { label: string; lvl: number };
 const SHELF_DEFS: Shelf[] = [
@@ -90,119 +72,47 @@ export function buildShelves(level: number): ShelfRow[] {
   });
 }
 
-// ---- Quest Map zones
-export type Zone = {
-  name: string;
-  pattern: string;
-  color: string;
-  done: number;
-  total: number;
-  blurb: string;
+// ---- Problem difficulty pills
+export type Tone = { bg: string; border: string; color: string };
+export const DIFFICULTY_STYLE: Record<string, Tone> = {
+  easy: { bg: "#EAF7D9", border: "#6FBF73", color: "#4C7A2F" },
+  medium: { bg: "#FDF3D6", border: "#E0A93C", color: "#A9761F" },
+  hard: { bg: "#FDECEC", border: "#EF5B54", color: "#B4342D" },
 };
 
-export const ZONES: Zone[] = [
-  { name: "Building Blocks", pattern: "Arrays & Strings", color: "#6FBF73", done: 14, total: 20, blurb: "Snap-together cubes" },
-  { name: "Marble Run", pattern: "Linked Lists", color: "#4FB0E5", done: 6, total: 16, blurb: "Chutes & pointers" },
-  { name: "Board Game", pattern: "Graphs & Trees", color: "#EF5B54", done: 9, total: 24, blurb: "Roll, branch, explore" },
-  { name: "Toy Kitchen", pattern: "SQL", color: "#F7C948", done: 11, total: 18, blurb: "Recipes & queries" },
-  { name: "Stacking Cups", pattern: "Stacks & Queues", color: "#E08A3C", done: 4, total: 12, blurb: "Last in, first out" },
-  { name: "Puzzle Box", pattern: "Dynamic Programming", color: "#8B6FD6", done: 2, total: 22, blurb: "Solve once, reuse" },
-];
-
-// ---- Achievements
-export type Achievement = { name: string; desc: string; color: string; earned: boolean };
-
-export const ACHIEVEMENTS: Achievement[] = [
-  { name: "First Fix", desc: "Solve your first toy", color: "#6FBF73", earned: true },
-  { name: "Week Winder", desc: "7-day streak", color: "#EF5B54", earned: true },
-  { name: "Unaided Ace", desc: "10 solves, no chests", color: "#4FB0E5", earned: true },
-  { name: "Block Master", desc: "Clear Building Blocks", color: "#F7C948", earned: true },
-  { name: "Night Owl", desc: "Solve after midnight", color: "#8B6FD6", earned: true },
-  { name: "Boss Slayer", desc: "Beat a Boss Battle", color: "#E08A3C", earned: true },
-  { name: "Marble Champ", desc: "Clear Marble Run", color: "#4FB0E5", earned: false },
-  { name: "Century Toy", desc: "Solve 100 problems", color: "#EF5B54", earned: false },
-  { name: "Perfect Week", desc: "All quests, 7 days", color: "#6FBF73", earned: false },
-  { name: "Graph Guru", desc: "Clear Board Game", color: "#8B6FD6", earned: false },
-  { name: "Speed Wind", desc: "Solve under 5 min", color: "#F7C948", earned: false },
-  { name: "Top Shelf", desc: "Reach Level 5", color: "#E08A3C", earned: false },
-];
-
-// ---- Analytics: charge earned this week
-export type XpDay = { label: string; v: number; height: number; valLabel: number };
-const XP_RAW: [string, number][] = [
-  ["Mon", 180], ["Tue", 260], ["Wed", 140], ["Thu", 320],
-  ["Fri", 300], ["Sat", 420], ["Sun", 360],
-];
-export function buildXpHistory(): XpDay[] {
-  const max = Math.max(...XP_RAW.map((d) => d[1]));
-  return XP_RAW.map(([label, v]) => ({
-    label,
-    v,
-    valLabel: v,
-    height: Math.round((v / max) * 160),
-  }));
+export function difficultyTone(difficulty: string): Tone {
+  return DIFFICULTY_STYLE[difficulty] ?? DIFFICULTY_STYLE.medium;
 }
 
 // ---- Analytics: pattern coverage pegboard
-export type CoverageRow = { pattern: string; level: number; pegs: boolean[]; litColor: string };
-const COVERAGE_DEFS: { pattern: string; level: number }[] = [
-  { pattern: "Arrays & Strings", level: 5 },
-  { pattern: "Linked Lists", level: 3 },
-  { pattern: "Graphs & Trees", level: 4 },
-  { pattern: "SQL", level: 4 },
-  { pattern: "Stacks & Queues", level: 2 },
-  { pattern: "Dynamic Prog.", level: 1 },
-];
 const PEG_SCALE = ["#F4C0C0", "#F7C948", "#8FD08F", "#6FBF73", "#4C9E51"];
-export function buildCoverage(): CoverageRow[] {
-  return COVERAGE_DEFS.map((c) => ({
-    ...c,
-    pegs: [0, 1, 2, 3, 4].map((i) => i < c.level),
-    litColor: PEG_SCALE[c.level - 1] || "#6FBF73",
-  }));
+
+/** Lit-peg colour for a 1-5 coverage level. */
+export function pegColor(level: number): string {
+  return PEG_SCALE[level - 1] ?? "#6FBF73";
 }
 
 // ---- Analytics: unaided-solve gauge
-export const UNAIDED_RATE = 74;
 export function gaugeBackground(rate: number): string {
   const deg = (rate / 100) * 280;
   return `conic-gradient(from 220deg,#6FBF73 0deg ${deg}deg,#E4D6B8 ${deg}deg 280deg,transparent 280deg 360deg)`;
 }
 
-// ---- Leaderboard
-export type Leader = { rank: number; name: string; xp: number; color: string; you: boolean };
-export const LEADERS: Leader[] = [
-  { rank: 1, name: "Cogsworth", xp: 9840, color: "#F7C948", you: false },
-  { rank: 2, name: "Patches", xp: 9120, color: "#4FB0E5", you: false },
-  { rank: 3, name: "Domino", xp: 8760, color: "#EF5B54", you: false },
-  { rank: 4, name: "Wheels", xp: 7990, color: "#8B6FD6", you: false },
-  { rank: 5, name: "Squeak", xp: 7420, color: "#E08A3C", you: false },
-  { rank: 6, name: "Bramble (You)", xp: 7180, color: "#6FBF73", you: true },
-  { rank: 7, name: "Tumble", xp: 6810, color: "#4FB0E5", you: false },
-  { rank: 8, name: "Bolt", xp: 6540, color: "#EF5B54", you: false },
-];
+// ---- Leaderboard podium
+export type PodiumSpot = Leader & { height: number; medal: string };
 
-export type PodiumSpot = { name: string; xp: number; rank: number; color: string; height: number; medal: string };
-export function buildPodium(): PodiumSpot[] {
-  // order: 2nd, 1st, 3rd
-  const spec: [Leader, number, string][] = [
-    [LEADERS[1], 96, "#C0C0C0"],
-    [LEADERS[0], 128, "#F7C948"],
-    [LEADERS[2], 74, "#CD7F32"],
-  ];
-  return spec.map(([l, height, medal]) => ({
-    name: l.name, xp: l.xp, rank: l.rank, color: l.color, height, medal,
-  }));
+const PODIUM_STEPS: Record<number, { height: number; medal: string }> = {
+  1: { height: 128, medal: "#F7C948" },
+  2: { height: 96, medal: "#C0C0C0" },
+  3: { height: 74, medal: "#CD7F32" },
+};
+
+/** The API returns the podium already ordered 2nd, 1st, 3rd — this only adds the step. */
+export function buildPodium(podium: Leader[]): PodiumSpot[] {
+  return podium.map((l) => ({ ...l, ...(PODIUM_STEPS[l.rank] ?? { height: 60, medal: "#C9A96A" }) }));
 }
 
-// ---- Profile: plans + notifications
-export type Plan = { key: string; name: string; price: string; perk: string };
-export const PLANS: Plan[] = [
-  { key: "free", name: "Free", price: "$0", perk: "3 quests/day" },
-  { key: "pro", name: "Pro", price: "$9/mo", perk: "Unlimited + bosses" },
-  { key: "team", name: "Playroom", price: "$29/mo", perk: "For toy squads" },
-];
-
+// ---- Profile: notification toggles
 export type NotifKey = "streak" | "weekly" | "bosses";
 export type NotifToggle = { key: NotifKey; label: string };
 export const TOGGLES: NotifToggle[] = [
@@ -211,17 +121,11 @@ export const TOGGLES: NotifToggle[] = [
   { key: "bosses", label: "New Boss Battle alerts" },
 ];
 
-// ---- Topbar streak heatmap (deterministic 3x12 grid, recent = hotter)
+// ---- Topbar streak heatmap: 36 activity levels (0-4) -> swatches
 const STREAK_SCALE = ["#EFE1C2", "#C8E6A8", "#8FD08F", "#6FBF73", "#4C9E51"];
-export function buildStreakCells(): string[] {
-  return Array.from({ length: 36 }, (_, i) => {
-    const col = Math.floor(i / 3);
-    let lvl: number;
-    if (col >= 8) lvl = 3 + (i % 2); // this week: hot streak
-    else if (col >= 5) lvl = 1 + (i % 3); // ramping up
-    else lvl = (i * 7) % 5 === 0 ? 2 : i % 4 === 0 ? 1 : 0; // sparse history
-    return STREAK_SCALE[lvl];
-  });
+
+export function streakColors(cells: number[]): string[] {
+  return cells.map((lvl) => STREAK_SCALE[Math.max(0, Math.min(lvl, STREAK_SCALE.length - 1))]);
 }
 
 export function fmtTime(t: number): string {

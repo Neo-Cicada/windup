@@ -174,29 +174,13 @@ backend/
 - **Achievement** / **UserAchievement**: the merit sash
 - **BossSession**: timed mock rounds
 
-## Wiring up the frontend
+## The frontend
 
-Point the Next.js app at the API and send the access token on every call:
+The Next.js app talks to this API through `frontend/lib/api.ts`, which stores the token
+pair, attaches the bearer header, and refreshes once on a 401 before giving up on the
+session. Point it at a different host with `NEXT_PUBLIC_API_URL` (default
+`http://localhost:8000/api/v1`), and keep this origin in `CORS_ORIGINS`.
 
-```ts
-// frontend/lib/api.ts
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
-
-export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = localStorage.getItem("windup_token");
-  const res = await fetch(`${API}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init.headers,
-    },
-  });
-  if (!res.ok) throw new Error((await res.json()).detail ?? res.statusText);
-  return res.json();
-}
-```
-
-`GET /dashboard` returns everything `app/academy/page.tsx` currently holds in
-`useState`, so the screen can hydrate from one request and keep its optimistic
-animations — the numbers it computes locally match what the server returns.
+Every screen hydrates from the endpoint listed beside it above — `GET /dashboard` fills
+the whole Playroom in one round trip — and the client no longer computes charge, levels
+or streaks itself: it renders the `progress` block that comes back with each mutation.

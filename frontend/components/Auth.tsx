@@ -1,12 +1,14 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import { FREDOKA } from "./data";
 import { PushButton } from "./PushButton";
 
 const abs = (s: CSSProperties): CSSProperties => ({ position: "absolute", ...s });
 
 export type AuthMode = "login" | "signup";
+
+export type AuthValues = { toyName: string; email: string; password: string };
 
 /** Cream-outlined Sprocket that waves from the dark brand panel. */
 function PanelSprocket() {
@@ -39,17 +41,34 @@ const inputStyle: CSSProperties = {
   marginBottom: 16,
 };
 
+const noticeStyle: CSSProperties = {
+  marginTop: 16,
+  border: "3px solid #2E2620",
+  borderRadius: 14,
+  padding: "12px 14px",
+  fontSize: 13,
+  fontWeight: 700,
+  animation: "pop .35s ease both",
+};
+
 type Props = {
   mode: AuthMode;
   showWelcome: boolean;
+  pending: boolean;
+  error: string | null;
   onBack: () => void;
-  onSubmit: () => void;
+  onSubmit: (values: AuthValues) => void;
   onSwitchMode: () => void;
 };
 
-export function Auth({ mode, showWelcome, onBack, onSubmit, onSwitchMode }: Props) {
+export function Auth({ mode, showWelcome, pending, error, onBack, onSubmit, onSwitchMode }: Props) {
   const isSignup = mode === "signup";
   const isLogin = mode === "login";
+
+  const [toyName, setToyName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [sparePart, setSparePart] = useState(false);
 
   const panelTitle = isSignup ? "Join the secret academy of toys." : "Welcome back to the playroom.";
   const panelBody = isSignup
@@ -57,7 +76,13 @@ export function Auth({ mode, showWelcome, onBack, onSubmit, onSwitchMode }: Prop
     : "Your shelves, streaks and merit badges are exactly where you left them.";
   const formTitle = isSignup ? "Create your toy" : "Log in";
   const formSub = isSignup ? "Free forever. No batteries required." : "Wind yourself back up.";
-  const submitLabel = isSignup ? "Start playing" : "Log in";
+  const submitLabel = pending
+    ? isSignup
+      ? "Unboxing…"
+      : "Winding up…"
+    : isSignup
+      ? "Start playing"
+      : "Log in";
   const switchText = isSignup ? "Already a toy?" : "New to the toybox?";
   const switchCta = isSignup ? "Log in" : "Sign up free";
   const welcomeMsg = isSignup
@@ -93,7 +118,8 @@ export function Auth({ mode, showWelcome, onBack, onSubmit, onSwitchMode }: Prop
           style={{ width: "100%", maxWidth: 380 }}
           onSubmit={(e) => {
             e.preventDefault();
-            onSubmit();
+            if (pending) return;
+            onSubmit({ toyName: toyName.trim(), email: email.trim(), password });
           }}
         >
           <button type="button" onClick={onBack} style={{ border: 0, background: "none", color: "#8B7358", fontWeight: 800, fontSize: 13, cursor: "pointer", padding: 0, marginBottom: 24 }}>
@@ -104,11 +130,16 @@ export function Auth({ mode, showWelcome, onBack, onSubmit, onSwitchMode }: Prop
 
           {/* social */}
           <div style={{ display: "flex", flexDirection: "column", gap: 11, marginBottom: 20 }}>
-            <PushButton onClick={onSubmit} bg="#fff" color="#3A2E27" shadow="#E0CBA0" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, borderRadius: 14, fontSize: 14, padding: "11px" }}>
+            <PushButton onClick={() => setSparePart(true)} bg="#fff" color="#3A2E27" shadow="#E0CBA0" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, borderRadius: 14, fontSize: 14, padding: "11px" }}>
               <span style={{ width: 18, height: 18, background: "#F7C948", border: "2px solid #2E2620", borderRadius: "50%" }} />
               Continue with a spare part
             </PushButton>
           </div>
+          {sparePart && (
+            <div style={{ ...noticeStyle, marginTop: 0, marginBottom: 16, background: "#FDF3D6", color: "#8A6420" }}>
+              Sprocket hasn&apos;t soldered that spare part on yet — use your email below.
+            </div>
+          )}
           <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "20px 0", color: "#B0794A", fontWeight: 800, fontSize: 12 }}>
             <span style={{ flex: 1, height: 2, background: "#D9C4A0" }} />
             OR
@@ -118,16 +149,46 @@ export function Auth({ mode, showWelcome, onBack, onSubmit, onSwitchMode }: Prop
           {/* name (signup only) */}
           {isSignup && (
             <>
-              <label style={labelStyle}>Toy name</label>
-              <input className="toy-input" placeholder="e.g. Bramble" style={inputStyle} />
+              <label style={labelStyle} htmlFor="toy-name">Toy name</label>
+              <input
+                id="toy-name"
+                className="toy-input"
+                placeholder="e.g. Bramble"
+                value={toyName}
+                onChange={(e) => setToyName(e.target.value)}
+                required
+                maxLength={60}
+                style={inputStyle}
+              />
             </>
           )}
 
-          <label style={labelStyle}>Email</label>
-          <input className="toy-input" placeholder="you@playroom.com" type="email" style={inputStyle} />
+          <label style={labelStyle} htmlFor="email">Email</label>
+          <input
+            id="email"
+            className="toy-input"
+            placeholder="you@playroom.com"
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            style={inputStyle}
+          />
 
-          <label style={labelStyle}>Password</label>
-          <input className="toy-input" placeholder="••••••••" type="password" style={{ ...inputStyle, marginBottom: 10 }} />
+          <label style={labelStyle} htmlFor="password">Password</label>
+          <input
+            id="password"
+            className="toy-input"
+            placeholder="••••••••"
+            type="password"
+            autoComplete={isSignup ? "new-password" : "current-password"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={isSignup ? 8 : 1}
+            style={{ ...inputStyle, marginBottom: 10 }}
+          />
 
           {isLogin && (
             <div style={{ textAlign: "right", marginBottom: 18 }}>
@@ -136,18 +197,22 @@ export function Auth({ mode, showWelcome, onBack, onSubmit, onSwitchMode }: Prop
           )}
           {isSignup && (
             <div style={{ margin: "6px 0 18px", fontSize: 12, color: "#8B7358", fontWeight: 700 }}>
-              By signing up you agree to keep the academy a secret from the humans.
+              At least 8 characters. By signing up you agree to keep the academy a secret from the humans.
             </div>
           )}
 
-          <PushButton type="submit" onClick={onSubmit} bg="#6FBF73" color="#173d19" shadow="#2E2620" style={{ width: "100%", borderRadius: 16, fontSize: 17, padding: 14, borderWidth: 4, boxShadowY: 6 }}>
+          <PushButton type="submit" bg="#6FBF73" color="#173d19" shadow="#2E2620" style={{ width: "100%", borderRadius: 16, fontSize: 17, padding: 14, borderWidth: 4, boxShadowY: 6, opacity: pending ? 0.75 : 1 }}>
             {submitLabel}
           </PushButton>
 
-          {showWelcome && (
-            <div style={{ marginTop: 16, background: "#EAF7D9", border: "3px solid #2E2620", borderRadius: 14, padding: "12px 14px", fontSize: 13, fontWeight: 700, color: "#4C7A2F", animation: "pop .35s ease both" }}>
-              {welcomeMsg}
+          {error && (
+            <div style={{ ...noticeStyle, background: "#FDECEC", color: "#B4342D" }} role="alert">
+              {error}
             </div>
+          )}
+
+          {showWelcome && (
+            <div style={{ ...noticeStyle, background: "#EAF7D9", color: "#4C7A2F" }}>{welcomeMsg}</div>
           )}
 
           <div style={{ marginTop: 24, textAlign: "center", fontSize: 14, fontWeight: 700, color: "#8B7358" }}>
