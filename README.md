@@ -53,11 +53,15 @@ backend/
 
 ## Getting started
 
+Run **both** halves — the Academy reads everything from the API, and `/academy`
+redirects to the landing page unless you're logged in.
+
 ### Frontend
 
 ```bash
 cd frontend
 npm install
+cp .env.example .env.local   # NEXT_PUBLIC_API_URL, if the API isn't on :8000
 npm run dev
 ```
 

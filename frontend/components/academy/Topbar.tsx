@@ -10,6 +10,9 @@ type Props = {
   streak: number;
   coins: number;
   streakCells: string[];
+  /** One wind-up per day — false once today's has been claimed. */
+  windAvailable: boolean;
+  winding: boolean;
   onWind: () => void;
 };
 
@@ -22,7 +25,9 @@ const pill = {
   boxShadow: "0 4px 0 #E0CBA0",
 } as const;
 
-export function Topbar({ title, level, levelName, xp, xpMax, xpPct, streak, coins, streakCells, onWind }: Props) {
+export function Topbar({ title, level, levelName, xp, xpMax, xpPct, streak, coins, streakCells, windAvailable, winding, onWind }: Props) {
+  const windLabel = winding ? "Winding…" : windAvailable ? "Wind up +40" : "Wound up today ✓";
+
   return (
     <header
       style={{
@@ -66,7 +71,7 @@ export function Topbar({ title, level, levelName, xp, xpMax, xpPct, streak, coin
             <span>{xp}/{xpMax}</span>
           </div>
           <div style={{ width: 150, height: 13, background: "#EFE1C2", border: "2px solid #2E2620", borderRadius: 8, overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${xpPct}%`, background: "repeating-linear-gradient(45deg,#6FBF73 0 8px,#63AF67 8px 16px)", borderRight: "2px solid #2E2620" }} />
+            <div style={{ height: "100%", width: `${xpPct}%`, background: "repeating-linear-gradient(45deg,#6FBF73 0 8px,#63AF67 8px 16px)", borderRight: "2px solid #2E2620", transition: "width .35s ease" }} />
           </div>
         </div>
       </div>
@@ -93,9 +98,23 @@ export function Topbar({ title, level, levelName, xp, xpMax, xpPct, streak, coin
       <button
         className="tap"
         onClick={onWind}
-        style={{ border: "3px solid #2E2620", borderRadius: 15, background: "#EF5B54", color: "#fff", fontWeight: 600, fontSize: 13.5, padding: "9px 15px", boxShadow: "0 5px 0 #2E2620", fontFamily: FREDOKA }}
+        disabled={!windAvailable || winding}
+        title={windAvailable ? "One free top-up a day" : "Come back tomorrow for another turn of the key"}
+        style={{
+          border: "3px solid #2E2620",
+          borderRadius: 15,
+          background: windAvailable ? "#EF5B54" : "#D9C4A0",
+          color: windAvailable ? "#fff" : "#6B5A4A",
+          fontWeight: 600,
+          fontSize: 13.5,
+          padding: "9px 15px",
+          boxShadow: "0 5px 0 #2E2620",
+          fontFamily: FREDOKA,
+          cursor: windAvailable && !winding ? "pointer" : "default",
+          opacity: winding ? 0.7 : 1,
+        }}
       >
-        Wind up +40
+        {windLabel}
       </button>
     </header>
   );

@@ -1,8 +1,9 @@
-import { FREDOKA, ACHIEVEMENTS } from "../data";
+import { FREDOKA } from "../data";
+import type { AchievementsSummary } from "@/lib/types";
 
-export function Achievements() {
-  const earned = ACHIEVEMENTS.filter((a) => a.earned).length;
+type Props = { toyName: string; data: AchievementsSummary };
 
+export function Achievements({ toyName, data }: Props) {
   return (
     <div data-screen-label="Achievements" style={{ maxWidth: 1120, margin: "0 auto" }}>
       {/* merit sash banner */}
@@ -14,13 +15,13 @@ export function Achievements() {
             <span style={{ position: "absolute", inset: 12, border: "3px solid #2E2620", borderRadius: "50%" }} />
           </div>
           <div style={{ flex: 1 }}>
-            <h1 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 26, color: "#fff", margin: 0 }}>Bramble&apos;s Merit Sash</h1>
+            <h1 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 26, color: "#fff", margin: 0 }}>{toyName}&apos;s Merit Sash</h1>
             <p style={{ margin: "2px 0 0", color: "#FFE3E1", fontWeight: 700, fontSize: 13 }}>Every badge is a toy you helped come to life.</p>
           </div>
           <div style={{ textAlign: "center", color: "#fff" }}>
             <div style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 34, lineHeight: 1 }}>
-              {earned}
-              <span style={{ fontSize: 18, color: "#FFD1CE" }}>/{ACHIEVEMENTS.length}</span>
+              {data.earned_count}
+              <span style={{ fontSize: 18, color: "#FFD1CE" }}>/{data.total_count}</span>
             </div>
             <div style={{ fontSize: 11, fontWeight: 800, color: "#FFD1CE" }}>EARNED</div>
           </div>
@@ -28,9 +29,9 @@ export function Achievements() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(170px,1fr))", gap: 20 }}>
-        {ACHIEVEMENTS.map((a) => (
+        {data.items.map((a) => (
           <div
-            key={a.name}
+            key={a.slug}
             style={{
               position: "relative",
               display: "flex",
@@ -62,7 +63,7 @@ export function Achievements() {
               <span style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: 26, height: 26, border: "3px solid rgba(46,38,32,.5)", borderRadius: 8 }} />
             </div>
             <div style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 14, color: a.earned ? "#3A2E27" : "#8B7B63" }}>{a.name}</div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: a.earned ? "#9B7B5B" : "#A99A80" }}>{a.desc}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: a.earned ? "#9B7B5B" : "#A99A80" }}>{a.description}</div>
           </div>
         ))}
       </div>
