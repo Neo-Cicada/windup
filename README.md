@@ -13,10 +13,19 @@ It reframes coding-interview prep as a playful quest: every DSA pattern is its o
 
 ## Tech stack
 
+**Frontend**
+
 - [Next.js](https://nextjs.org) 16 (App Router)
 - React 19
 - TypeScript 5
 - Fonts: Fredoka + Nunito via `next/font`
+
+**Backend**
+
+- [FastAPI](https://fastapi.tiangolo.com) (async) + Uvicorn
+- PostgreSQL via SQLAlchemy 2.0 (`asyncpg`) + Alembic
+- Pydantic v2, JWT auth, bcrypt password hashing
+- Managed with [`uv`](https://docs.astral.sh/uv/)
 
 ## Project structure
 
@@ -28,9 +37,23 @@ frontend/
     layout.tsx       # Root layout, fonts, metadata
     globals.css
   components/         # Landing, Auth, Confetti, PushButton, academy/*
+
+backend/
+  app/
+    main.py          # FastAPI app, CORS, /health
+    core/            # settings, JWT + bcrypt
+    db/              # engine, session, seed data
+    models/          # SQLAlchemy tables
+    schemas/         # Pydantic request/response models
+    api/v1/endpoints # one module per screen area
+    services/        # leveling, streaks, achievements, analytics
+  alembic/           # migrations
+  tests/
 ```
 
 ## Getting started
+
+### Frontend
 
 ```bash
 cd frontend
@@ -39,6 +62,22 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to view the landing page; the Academy dashboard lives at `/academy`.
+
+### Backend
+
+```bash
+cd backend
+uv sync
+cp .env.example .env                  # edit DATABASE_URL / SECRET_KEY
+createdb windup                       # or: docker compose up -d db
+uv run alembic upgrade head
+uv run python -m app.db.seed --demo   # catalogue + demo toy
+uv run uvicorn app.main:app --reload --port 8000
+```
+
+API docs at [http://localhost:8000/docs](http://localhost:8000/docs). Demo login:
+`bramble@playroom.com` / `windup123`. See [`backend/README.md`](backend/README.md)
+for the full endpoint reference and data model.
 
 ## Scripts
 
@@ -50,3 +89,13 @@ Run from the `frontend/` directory:
 | `npm run build` | Production build           |
 | `npm run start` | Serve the production build |
 | `npm run lint`  | Run ESLint                 |
+
+Run from the `backend/` directory:
+
+| Command                          | Description                  |
+| -------------------------------- | ---------------------------- |
+| `uv run uvicorn app.main:app --reload` | Start the API dev server |
+| `uv run alembic upgrade head`    | Apply migrations             |
+| `uv run python -m app.db.seed`   | Seed zones, problems, badges |
+| `uv run pytest`                  | Run the test suite           |
+| `uv run ruff check .`            | Lint                         |
