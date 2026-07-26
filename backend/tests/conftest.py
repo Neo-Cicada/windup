@@ -81,3 +81,70 @@ async def auth(client: AsyncClient, seeded: None) -> dict[str, str]:
     )
     assert resp.status_code == 201, resp.text
     return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+
+
+def solution_for(slug: str) -> str:
+    """The seeded reference solution — a submission that ought to pass."""
+    from app.db.seed_data import PROBLEMS
+
+    return next(p for p in PROBLEMS if p["slug"] == slug)["solution"]
+
+
+class Judge:
+    """Stands in for the worker process.
+
+    Submitting is asynchronous now, so a test that wants a verdict has to run
+    the judge itself. This drains the queue against the test database using the
+    same `claim_batch` / `process_one` the real worker uses.
+    """
+
+    def __init__(self, client: AsyncClient, auth: dict[str, str]) -> None:
+        from app.judge.runner import SubprocessRunner
+
+        self._client = client
+        self._auth = auth
+        # Subprocess rather than wasm: no 20MB artifact needed, and it's the
+        # faster of the two per run. The wasm runner has its own tests.
+        self._runner = SubprocessRunner()
+
+    async def drain(self) -> int:
+        from app.judge.worker import claim_batch, process_one
+
+        done = 0
+        while True:
+            async with TestSession() as db:
+                ids = [s.id for s in await claim_batch(db, 10)]
+            if not ids:
+                return done
+            for submission_id in ids:
+                async with TestSession() as db:
+                    await process_one(db, self._runner, submission_id)
+                done += 1
+
+    async def submit(self, slug: str, code: str, **extra: object) -> dict:
+        """Submit without judging — returns the 202 body."""
+        resp = await self._client.post(
+            f"/api/v1/problems/{slug}/submit",
+            headers=self._auth,
+            json={"code": code, **extra},
+        )
+        assert resp.status_code == 202, resp.text
+        return resp.json()
+
+    async def result(self, submission_id: str) -> dict:
+        resp = await self._client.get(f"/api/v1/submissions/{submission_id}", headers=self._auth)
+        assert resp.status_code == 200, resp.text
+        return resp.json()
+
+    async def solve(self, slug: str, code: str | None = None, **extra: object) -> dict:
+        """Submit, run the judge, and return the settled result."""
+        if code is None:
+            code = solution_for(slug)
+        accepted = await self.submit(slug, code, **extra)
+        await self.drain()
+        return await self.result(accepted["submission_id"])
+
+
+@pytest.fixture
+async def judge(client: AsyncClient, auth: dict[str, str]) -> Judge:
+    return Judge(client, auth)
