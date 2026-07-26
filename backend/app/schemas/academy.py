@@ -68,6 +68,19 @@ class HelpShelfOut(BaseModel):
     solution: str | None = None
 
 
+class TestCaseOut(BaseModel):
+    """A visible example case, for the in-browser "Run" button.
+
+    Only `example`-visibility cases are ever serialised. The hidden ones grade
+    the submission and never leave the server — same rule as a locked chest.
+    """
+
+    ordinal: int
+    label: str
+    args: list
+    expected: object
+
+
 class ProblemDetailOut(ProblemOut):
     prompt: str
     example_input: str
@@ -78,6 +91,12 @@ class ProblemDetailOut(ProblemOut):
     chests: ChestsOut
     unaided: bool
     unaided_bonus: int
+    # False for problems the judge can't run yet (the SQL one).
+    graded: bool = True
+    entrypoint: str = ""
+    harness_preamble: str = ""
+    example_tests: list[TestCaseOut] = []
+    hidden_test_count: int = 0
 
 
 class ChestUnlockOut(BaseModel):
@@ -90,24 +109,62 @@ class ChestUnlockOut(BaseModel):
 
 # ---- submissions ------------------------------------------------------------
 class SubmissionIn(BaseModel):
-    code: str = Field(default="", max_length=20000)
+    """What the workbench sends.
+
+    Note the absence of `status`. The client used to declare its own verdict and
+    the server took its word for it; now the judge decides, so there is nothing
+    here to declare it with.
+    """
+
+    code: str = Field(min_length=1, max_length=20000)
     language: str = Field(default="python", max_length=24)
-    status: SubmissionStatus = SubmissionStatus.PASSED
     duration_seconds: int | None = Field(default=None, ge=0, le=86_400)
     boss_session_id: UUID | None = None
+
+
+class SubmissionAcceptedOut(BaseModel):
+    """202 from submit: it's queued, poll for the verdict."""
+
+    submission_id: UUID
+    status: SubmissionStatus = SubmissionStatus.PENDING
+    poll_after_ms: int = 400
+    queue_position: int = 0
+
+
+class FailureOut(BaseModel):
+    """The first failing case, and only as much of it as is fair to show."""
+
+    ordinal: int = 0
+    label: str = ""
+    hidden: bool = False
+    args: list = []
+    actual: object = None
+    # Omitted for hidden cases — handing it back would make them a lookup table.
+    expected: object = None
+    stdout: str = ""
+    error: str | None = None
 
 
 class SubmissionResultOut(BaseModel):
     submission_id: UUID
     status: SubmissionStatus
     unaided: bool
-    xp_awarded: int
-    coins_awarded: int
-    leveled_up: bool
-    sprocket_message: str
-    confetti: int
+    # Null until the judge has ruled — everything below is settled at once.
+    xp_awarded: int | None = None
+    coins_awarded: int | None = None
+    leveled_up: bool | None = None
+    sprocket_message: str = ""
+    confetti: int = 0
     newly_earned: list["AchievementOut"] = []
-    progress: ProgressOut
+    progress: ProgressOut | None = None
+    tests_passed: int = 0
+    tests_total: int = 0
+    runtime_ms: int | None = None
+    failure: FailureOut | None = None
+    # True when a still-unjudged submission has been waiting long enough that
+    # something is likely wrong (usually: no judge worker is running). The
+    # message says which. The client stops polling rather than waiting it out.
+    stalled: bool = False
 
 
 # ---- quests -----------------------------------------------------------------
