@@ -85,7 +85,6 @@ async def seed_demo_user(db: AsyncSession) -> User:
         password_hash=hash_password(DEMO_PASSWORD),
         toy_name="Bramble",
         trainee_no=(highest or 470) + 1,
-        plan="pro",
         notify_bosses=False,
     )
     user.progress = Progress(xp_max=settings.STARTING_XP_MAX)

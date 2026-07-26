@@ -1,12 +1,6 @@
 from enum import StrEnum
 
 
-class Plan(StrEnum):
-    FREE = "free"
-    PRO = "pro"
-    TEAM = "team"
-
-
 class Difficulty(StrEnum):
     EASY = "easy"
     MEDIUM = "medium"

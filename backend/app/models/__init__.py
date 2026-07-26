@@ -6,7 +6,6 @@ from app.models.enums import (
     BossStatus,
     ChestTier,
     Difficulty,
-    Plan,
     SubmissionStatus,
     XpSource,
 )
@@ -29,7 +28,6 @@ __all__ = [
     "ChestUnlock",
     "DailyQuest",
     "Difficulty",
-    "Plan",
     "Problem",
     "Progress",
     "Submission",

@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     XP_WIND_UP: int = 40
     COINS_PER_XP_DIVISOR: int = 4
     BOSS_DURATION_SECONDS: int = 900
-    FREE_PLAN_DAILY_QUESTS: int = 3
+    DAILY_QUESTS: int = 3
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

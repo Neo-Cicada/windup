@@ -55,7 +55,7 @@ Layering is `api/v1/endpoints/*` → `services/*` → `models/*`, with `schemas/
 
 ### Gameplay constants
 
-Tuning numbers (`XP_SOLVE_UNAIDED`, `XP_MAX_GROWTH`, `BOSS_DURATION_SECONDS`, `FREE_PLAN_DAILY_QUESTS`, …) live in `app/core/config.py` as settings, not as literals in endpoints.
+Tuning numbers (`XP_SOLVE_UNAIDED`, `XP_MAX_GROWTH`, `BOSS_DURATION_SECONDS`, `DAILY_QUESTS`, …) live in `app/core/config.py` as settings, not as literals in endpoints.
 
 The frontend no longer recomputes any of this: XP, levels, level names and streaks come back on the response to whatever caused them (`SubmissionResultOut.progress`, `DashboardOut` from `/me/wind-up`). `app/services/leveling.py` is the only implementation — don't reintroduce an optimistic copy in the client.
 
@@ -67,7 +67,7 @@ These are the load-bearing rules; several endpoints exist specifically to enforc
 - Re-solving a problem pays nothing, which is also what stops old solves from clearing a boss rematch.
 - Boss `complete` is not self-declared: it counts distinct problems solved *during that session* (submissions carrying its `boss_session_id` that paid out XP) and returns `409` naming the shortfall. The clock is computed server-side from the last resume, so refreshing or opening a second tab can't extend it.
 - `POST /me/wind-up` is once per day, enforced by a unique constraint (see the `enforce_one_wind_up_per_day` migration).
-- `PATCH /me` edits toy name and notification toggles only. Password and email changes re-authenticate with the current password; `plan` is not user-writable at all (it needs a billing flow that doesn't exist — every account stays on `free`).
+- `PATCH /me` edits toy name and notification toggles only. Password and email changes re-authenticate with the current password.
 - `Settings` refuses to boot outside `ENV=development` with the committed dev `SECRET_KEY`, a key under 32 chars, or wildcard CORS.
 
 `XpEvent` is an append-only ledger — the weekly chart and the streak heatmap read from it rather than from counters.

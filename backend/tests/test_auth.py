@@ -11,7 +11,6 @@ async def test_signup_returns_tokens_and_toy(client: AsyncClient, seeded: None) 
     assert body["access_token"] and body["refresh_token"]
     assert body["user"]["toy_name"] == "Bolt"
     assert body["user"]["email"] == "bolt@playroom.com"  # normalised
-    assert body["user"]["plan"] == "free"
     assert len(body["user"]["trainee_no"]) == 4
 
 

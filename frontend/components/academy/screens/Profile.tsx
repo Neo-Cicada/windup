@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { FREDOKA, TOGGLES, type NotifKey } from "../data";
-import type { PlanOption, User } from "@/lib/types";
+import type { User } from "@/lib/types";
 
 export type AccountValues = {
   toyName: string;
@@ -14,7 +14,6 @@ export type AccountValues = {
 
 type Props = {
   user: User;
-  plans: PlanOption[];
   saving: boolean;
   flash: string | null;
   error: string | null;
@@ -37,7 +36,7 @@ const inputStyle = {
 } as const;
 const hintStyle = { margin: "6px 0 0", fontSize: 11.5, fontWeight: 700, color: "#9B7B5B" } as const;
 
-export function Profile({ user, plans, saving, flash, error, onSave, onLogout, onEdit }: Props) {
+export function Profile({ user, saving, flash, error, onSave, onLogout, onEdit }: Props) {
   // The form is seeded from the toy on mount — leaving the screen and coming back
   // re-seeds it from whatever the server last confirmed.
   const [toyName, setToyName] = useState(user.toy_name);
@@ -45,14 +44,8 @@ export function Profile({ user, plans, saving, flash, error, onSave, onLogout, o
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [notif, setNotif] = useState<Record<NotifKey, boolean>>(user.notifications);
-  const [planNote, setPlanNote] = useState<string | null>(null);
 
   const credentialChange = email.trim().toLowerCase() !== user.email || newPassword.length > 0;
-
-  function edited() {
-    setPlanNote(null);
-    onEdit();
-  }
 
   async function handleSave() {
     const saved = await onSave({ toyName, email, currentPassword, newPassword, notif });
@@ -60,14 +53,6 @@ export function Profile({ user, plans, saving, flash, error, onSave, onLogout, o
       setCurrentPassword("");
       setNewPassword("");
     }
-  }
-
-  function pickPlan(key: string) {
-    setPlanNote(
-      key === user.plan
-        ? null
-        : "Tier changes need a trip to the till — Sprocket hasn't built the checkout yet."
-    );
   }
 
   return (
@@ -91,7 +76,7 @@ export function Profile({ user, plans, saving, flash, error, onSave, onLogout, o
           <div style={{ width: 34, height: 34, flex: "none", background: "#4FB0E5", border: "3px solid #2E2620", borderRadius: 10, boxShadow: "0 3px 0 #2E2620" }} />
           <h2 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 20, margin: 0 }}>Account</h2>
         </div>
-        <p style={{ margin: "0 0 22px", fontSize: 13, color: "#9B7B5B", fontWeight: 700 }}>Your login details and plan. Keep them safe from the humans.</p>
+        <p style={{ margin: "0 0 22px", fontSize: 13, color: "#9B7B5B", fontWeight: 700 }}>Your login details. Keep them safe from the humans.</p>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px 24px" }} className="acad-acct-grid">
           <div>
@@ -100,7 +85,7 @@ export function Profile({ user, plans, saving, flash, error, onSave, onLogout, o
               id="acct-toy-name"
               className="acct-input"
               value={toyName}
-              onChange={(e) => { setToyName(e.target.value); edited(); }}
+              onChange={(e) => { setToyName(e.target.value); onEdit(); }}
               maxLength={60}
               style={inputStyle}
             />
@@ -111,7 +96,7 @@ export function Profile({ user, plans, saving, flash, error, onSave, onLogout, o
               id="acct-email"
               className="acct-input"
               value={email}
-              onChange={(e) => { setEmail(e.target.value); edited(); }}
+              onChange={(e) => { setEmail(e.target.value); onEdit(); }}
               type="email"
               autoComplete="email"
               style={inputStyle}
@@ -123,7 +108,7 @@ export function Profile({ user, plans, saving, flash, error, onSave, onLogout, o
               id="acct-new-password"
               className="acct-input"
               value={newPassword}
-              onChange={(e) => { setNewPassword(e.target.value); edited(); }}
+              onChange={(e) => { setNewPassword(e.target.value); onEdit(); }}
               type="password"
               autoComplete="new-password"
               placeholder="Leave blank to keep it"
@@ -151,46 +136,13 @@ export function Profile({ user, plans, saving, flash, error, onSave, onLogout, o
           </div>
         </div>
 
-        {/* plans */}
-        <div style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 14, margin: "24px 0 10px" }}>Subscription tier</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14 }} className="acad-plan-grid">
-          {plans.map((p) => {
-            const on = user.plan === p.key;
-            return (
-              <button
-                key={p.key}
-                className="tap"
-                onClick={() => pickPlan(p.key)}
-                style={{
-                  textAlign: "center",
-                  border: "3px solid #2E2620",
-                  borderRadius: 16,
-                  padding: "14px 10px",
-                  background: on ? "#EAF6FD" : "#FCF6E9",
-                  boxShadow: on ? "0 4px 0 #C9DEEC" : "0 4px 0 #E0CBA0",
-                  outline: on ? "3px solid #4FB0E5" : "none",
-                  outlineOffset: on ? 2 : 0,
-                }}
-              >
-                <div style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 16 }}>{p.name}</div>
-                <div style={{ fontSize: 12, fontWeight: 800, color: on ? "#2C6E9C" : "#B0794A" }}>{p.price}</div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#9B7B5B", marginTop: 4 }}>{p.perk}</div>
-                {on && <div style={{ fontSize: 10, fontWeight: 800, color: "#4C7A2F", marginTop: 6 }}>CURRENT</div>}
-              </button>
-            );
-          })}
-        </div>
-        {planNote && (
-          <p style={{ margin: "10px 0 0", fontSize: 12, fontWeight: 700, color: "#A9761F" }}>{planNote}</p>
-        )}
-
         {/* notifications */}
         <div style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 14, margin: "24px 0 10px" }}>Notifications</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {TOGGLES.map((t) => {
             const on = notif[t.key];
             return (
-              <button key={t.key} className="tap" onClick={() => { setNotif((s) => ({ ...s, [t.key]: !s[t.key] })); edited(); }} style={{ display: "flex", alignItems: "center", gap: 13, width: "100%", textAlign: "left", background: "#FCF6E9", border: "3px solid #2E2620", borderRadius: 16, padding: "12px 15px" }}>
+              <button key={t.key} className="tap" onClick={() => { setNotif((s) => ({ ...s, [t.key]: !s[t.key] })); onEdit(); }} style={{ display: "flex", alignItems: "center", gap: 13, width: "100%", textAlign: "left", background: "#FCF6E9", border: "3px solid #2E2620", borderRadius: 16, padding: "12px 15px" }}>
                 <span style={{ width: 44, height: 26, flex: "none", border: "3px solid #2E2620", borderRadius: 14, position: "relative", transition: ".15s", background: on ? "#6FBF73" : "#E4D6B8" }}>
                   <span style={{ position: "absolute", top: 2, left: on ? 20 : 2, width: 16, height: 16, background: "#fff", border: "2px solid #2E2620", borderRadius: "50%", transition: ".15s" }} />
                 </span>

@@ -138,13 +138,9 @@ Because a re-solve pays nothing, old solves can't be recycled to clear a rematch
 | `PATCH` | `/me` | "Save account": toy name and notification toggles only |
 | `POST` | `/me/password` | Password change, re-authenticated |
 | `POST` | `/me/email` | Email change, re-authenticated |
-| `GET` | `/plans` | Free / Pro / Playroom tiers (display only) |
 
 Credentials are deliberately **not** editable through `PATCH /me` — both take the
-current password, so a leaked access token alone can't lock the owner out. `plan` is
-not user-writable at all: it's a paid entitlement and must be set by a billing flow.
-The profile screen's tier picker therefore needs a checkout step before it can work;
-right now every account stays on `free`.
+current password, so a leaked access token alone can't lock the owner out.
 
 ## Layout
 

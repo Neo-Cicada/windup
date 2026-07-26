@@ -75,7 +75,7 @@ export function Auth({ mode, showWelcome, pending, error, onBack, onSubmit, onSw
     ? "Create your toy, pick a corner, and start turning interview prep into playtime."
     : "Your shelves, streaks and merit badges are exactly where you left them.";
   const formTitle = isSignup ? "Create your toy" : "Log in";
-  const formSub = isSignup ? "Free forever. No batteries required." : "Wind yourself back up.";
+  const formSub = isSignup ? "No batteries required." : "Wind yourself back up.";
   const submitLabel = pending
     ? isSignup
       ? "Unboxing…"

@@ -25,7 +25,6 @@ from app.schemas.user import (
     AccountUpdateIn,
     NotificationPrefs,
     PasswordChangeIn,
-    PlanOut,
     UserOut,
 )
 
@@ -46,7 +45,6 @@ __all__ = [
     "LoginIn",
     "NotificationPrefs",
     "PasswordChangeIn",
-    "PlanOut",
     "ProblemDetailOut",
     "ProblemOut",
     "ProgressOut",

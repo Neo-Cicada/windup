@@ -28,7 +28,6 @@ import type {
   ChestUnlockResult,
   DashboardData,
   LeaderboardSummary,
-  PlanOption,
   Problem,
   ProblemDetail,
   StreakSummary,
@@ -66,7 +65,6 @@ function Academy() {
   const achievements = useResource<AchievementsSummary>("/achievements", screen === "achievements");
   const analytics = useResource<AnalyticsSummary>("/analytics", screen === "analytics");
   const leaderboard = useResource<LeaderboardSummary>("/leaderboard", screen === "leaderboard");
-  const plans = useResource<PlanOption[]>("/plans", screen === "workshop");
 
   const [openZone, setOpenZone] = useState<string | null>(null);
   const zoneProblems = useResource<Problem[]>(
@@ -510,7 +508,6 @@ function Academy() {
             ) : (
               <Profile
                 user={user}
-                plans={plans.data ?? []}
                 saving={saving}
                 flash={acctFlash}
                 error={acctError}
