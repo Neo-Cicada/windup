@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored Pyodide runtime, copied in by scripts/copy-pyodide.mjs. It is a
+    // minified emscripten bundle — linting it produces thousands of findings
+    // about code we neither wrote nor can fix. Our own worker beside it,
+    // runner.worker.js, is deliberately not ignored.
+    "public/pyodide/pyodide*",
   ]),
 ]);
 

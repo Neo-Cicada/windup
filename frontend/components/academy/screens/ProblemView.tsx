@@ -2,7 +2,9 @@
 
 import type { ReactNode } from "react";
 import { FREDOKA, MONO, difficultyTone } from "../data";
-import type { ChestTier, ProblemDetail } from "@/lib/types";
+import { LocalRunResults, SubmissionResults } from "../TestResults";
+import type { RunCaseResult } from "@/lib/pyodide";
+import type { ChestTier, ProblemDetail, SubmissionResult } from "@/lib/types";
 
 type Props = {
   problem: ProblemDetail;
@@ -11,8 +13,14 @@ type Props = {
   /** The tier currently being opened, so its chest can show a pending state. */
   unlocking: ChestTier | null;
   submitting: boolean;
+  /** Running the examples locally — no server involved. */
+  running: boolean;
+  localResults: RunCaseResult[] | null;
+  /** The judged (or still-judging) submission. */
+  result: SubmissionResult | null;
   error: string | null;
   onUnlock: (tier: ChestTier) => void;
+  onRun: () => void;
   onSubmit: () => void;
 };
 
@@ -30,6 +38,76 @@ const codeBlock = {
   whiteSpace: "pre-wrap" as const,
   margin: 0,
 };
+
+const INDENT = "    "; // four spaces — the problems are Python
+
+const kbd = {
+  fontFamily: MONO,
+  fontSize: 10,
+  background: "#FBF4E4",
+  border: "1.5px solid #D8C4A0",
+  borderRadius: 4,
+  padding: "1px 4px",
+  color: "#9B7B5B",
+};
+
+/**
+ * Make Tab indent instead of leaving the box.
+ *
+ * A textarea hands Tab to the browser, which moves focus to the next control.
+ * That is the right default for a form field and the wrong one for a code box,
+ * especially in Python where the indentation *is* the syntax.
+ *
+ * Tab with a multi-line selection indents the block; Shift+Tab dedents. Escape
+ * blurs, so Tab still gets a keyboard user out of the field afterwards.
+ *
+ * Edits go through `document.execCommand("insertText")` rather than by rewriting
+ * the value: it is the only way to change a textarea that keeps the browser's
+ * native undo stack, so Cmd+Z still works. It is formally deprecated with no
+ * replacement that preserves undo.
+ */
+function handleCodeKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
+  const field = event.currentTarget;
+
+  if (event.key === "Escape") {
+    field.blur();
+    return;
+  }
+  if (event.key !== "Tab" || event.metaKey || event.ctrlKey || event.altKey) return;
+
+  event.preventDefault();
+
+  const { value, selectionStart, selectionEnd } = field;
+  const lineStart = value.lastIndexOf("\n", selectionStart - 1) + 1;
+  const spansLines = value.slice(selectionStart, selectionEnd).includes("\n");
+
+  // Simple case: drop an indent in at the cursor.
+  if (!spansLines && !event.shiftKey) {
+    document.execCommand("insertText", false, INDENT);
+    return;
+  }
+
+  // Block case: rewrite whole lines, then reselect what we rewrote.
+  const lineEnd = value.indexOf("\n", selectionEnd);
+  const blockEnd = lineEnd === -1 ? value.length : lineEnd;
+  const block = value.slice(lineStart, blockEnd);
+
+  const shifted = block
+    .split("\n")
+    .map((line) => {
+      if (!event.shiftKey) return INDENT + line;
+      const strip = line.match(/^ {1,4}/);
+      return strip === null ? line : line.slice(strip[0].length);
+    })
+    .join("\n");
+
+  if (shifted === block) return;
+
+  field.setSelectionRange(lineStart, blockEnd);
+  document.execCommand("insertText", false, shifted);
+  // Keep the same lines selected so Tab can be pressed again.
+  field.setSelectionRange(lineStart, lineStart + shifted.length);
+}
 
 type ChestBtnProps = { color: string; lid: string; title: string; sub: string; pending: boolean; onClick: () => void };
 
@@ -67,9 +145,12 @@ function OpenedChest({ tone, accent, title, children }: { tone: { bg: string; te
   );
 }
 
-export function ProblemView({ problem, code, onCodeChange, unlocking, submitting, error, onUnlock, onSubmit }: Props) {
+export function ProblemView({ problem, code, onCodeChange, unlocking, submitting, running, localResults, result, error, onUnlock, onRun, onSubmit }: Props) {
   const { chests, help_shelf: help } = problem;
   const tone = difficultyTone(problem.difficulty);
+  const busy = submitting || running;
+  // The SQL problem has no runner yet — nothing to try locally, nothing graded.
+  const canRunLocally = problem.graded && problem.example_tests.length > 0;
 
   return (
     <div data-screen-label="Problem View" style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 22, maxWidth: 1180, margin: "0 auto", alignItems: "start" }} className="acad-problem">
@@ -116,7 +197,11 @@ export function ProblemView({ problem, code, onCodeChange, unlocking, submitting
           <textarea
             value={code}
             onChange={(e) => onCodeChange(e.target.value)}
+            onKeyDown={handleCodeKeyDown}
             spellCheck={false}
+            aria-label={`${problem.language} workbench for ${problem.title}`}
+            // Tab indents here rather than moving on; Escape leaves the box.
+            aria-describedby="workbench-keys"
             style={{
               width: "100%",
               minHeight: 180,
@@ -131,14 +216,33 @@ export function ProblemView({ problem, code, onCodeChange, unlocking, submitting
               lineHeight: 1.7,
             }}
           />
-          <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+          <p
+            id="workbench-keys"
+            style={{ margin: "8px 0 0", fontSize: 11, color: "#B0906B", fontWeight: 700 }}
+          >
+            <kbd style={kbd}>Tab</kbd> indents · <kbd style={kbd}>Shift</kbd>+
+            <kbd style={kbd}>Tab</kbd> outdents · <kbd style={kbd}>Esc</kbd> leaves the box
+          </p>
+
+          <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            {canRunLocally && (
+              <button
+                className="tap"
+                onClick={onRun}
+                disabled={busy}
+                title="Tries the examples right here in your browser. Earns no charge."
+                style={{ border: "3px solid #2E2620", borderRadius: 15, background: "#FBF4E4", color: "#5C4A3C", fontWeight: 700, fontSize: 15, padding: "11px 20px", boxShadow: "0 5px 0 #2E2620", fontFamily: FREDOKA, opacity: busy ? 0.7 : 1 }}
+              >
+                {running ? "Trying the examples…" : "Run examples"}
+              </button>
+            )}
             <button
               className="tap"
               onClick={onSubmit}
-              disabled={submitting}
-              style={{ border: "3px solid #2E2620", borderRadius: 15, background: "#6FBF73", color: "#173d19", fontWeight: 700, fontSize: 15, padding: "11px 22px", boxShadow: "0 5px 0 #2E2620", fontFamily: FREDOKA, opacity: submitting ? 0.7 : 1 }}
+              disabled={busy}
+              style={{ border: "3px solid #2E2620", borderRadius: 15, background: "#6FBF73", color: "#173d19", fontWeight: 700, fontSize: 15, padding: "11px 22px", boxShadow: "0 5px 0 #2E2620", fontFamily: FREDOKA, opacity: busy ? 0.7 : 1 }}
             >
-              {submitting ? "Testing the springs…" : "Run & Submit"}
+              {submitting ? "Sprocket is judging…" : "Submit"}
             </button>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: 12, fontWeight: 800, color: "#9B7B5B" }}>Unaided bonus:</span>
@@ -147,10 +251,35 @@ export function ProblemView({ problem, code, onCodeChange, unlocking, submitting
               </span>
             </div>
           </div>
+
+          {problem.graded ? (
+            <p style={{ margin: "10px 0 0", fontSize: 11.5, color: "#9B7B5B", fontWeight: 700 }}>
+              Run tries {problem.example_tests.length} example
+              {problem.example_tests.length === 1 ? "" : "s"} in your browser. Submit sends it to
+              Sprocket, who also tries {problem.hidden_test_count} hidden spring
+              {problem.hidden_test_count === 1 ? "" : "s"}.
+            </p>
+          ) : (
+            <p style={{ margin: "10px 0 0", fontSize: 11.5, color: "#9B7B5B", fontWeight: 700 }}>
+              Sprocket hasn&apos;t built a test rig for {problem.language.toUpperCase()} yet — this
+              one still runs on the honour system.
+            </p>
+          )}
+
           {error && (
             <div style={{ marginTop: 14, background: "#FDECEC", border: "3px solid #2E2620", borderRadius: 14, padding: "11px 14px", fontSize: 13, fontWeight: 700, color: "#B4342D" }} role="alert">
               {error}
             </div>
+          )}
+
+          {/* The judged verdict wins the space when there is one; the local run
+              is only shown while it is the most recent thing that happened. */}
+          {result !== null ? (
+            <SubmissionResults result={result} />
+          ) : (
+            localResults !== null && localResults.length > 0 && (
+              <LocalRunResults results={localResults} />
+            )
           )}
         </div>
       </section>

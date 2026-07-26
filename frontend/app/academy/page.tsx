@@ -18,7 +18,9 @@ import { Profile, type AccountValues } from "@/components/academy/screens/Profil
 import { TITLES, fmtTime, streakColors, type ScreenKey } from "@/components/academy/data";
 import { api, errorMessage, patch, post } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { runExamples, type RunCaseResult } from "@/lib/pyodide";
 import { useResource } from "@/lib/useResource";
+import { TERMINAL_STATUSES } from "@/lib/types";
 import type {
   AchievementsSummary,
   AnalyticsSummary,
@@ -31,6 +33,7 @@ import type {
   Problem,
   ProblemDetail,
   StreakSummary,
+  SubmissionAccepted,
   SubmissionResult,
   User,
   Zone,
@@ -38,6 +41,63 @@ import type {
 
 const BOSS_FALLBACK_SECONDS = 900;
 const EMPTY_STREAK = Array<number>(36).fill(0);
+
+/** How long to wait on the judge before telling the toy something is wrong. */
+const JUDGE_PATIENCE_MS = 45_000;
+const POLL_CEILING_MS = 2_000;
+
+/** What the workbench shows between "queued" and the verdict. */
+const PENDING_RESULT: SubmissionResult = {
+  submission_id: "",
+  status: "pending",
+  unaided: true,
+  xp_awarded: null,
+  coins_awarded: null,
+  leveled_up: null,
+  sprocket_message: "",
+  confetti: 0,
+  newly_earned: [],
+  progress: null,
+  tests_passed: 0,
+  tests_total: 0,
+  runtime_ms: null,
+  failure: null,
+  stalled: false,
+};
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Poll a submission until the judge rules on it.
+ *
+ * Returns null if `stillWanted` goes false (the toy moved on) or patience runs
+ * out. The backoff keeps a busy queue from being hammered by every open tab.
+ */
+async function pollForVerdict(
+  submissionId: string,
+  firstDelayMs: number,
+  stillWanted: () => boolean
+): Promise<SubmissionResult | null> {
+  const deadline = Date.now() + JUDGE_PATIENCE_MS;
+  let delay = firstDelayMs > 0 ? firstDelayMs : 400;
+
+  while (Date.now() < deadline) {
+    await sleep(delay);
+    if (!stillWanted()) return null;
+
+    const result = await api<SubmissionResult>(`/submissions/${submissionId}`);
+    if (TERMINAL_STATUSES.includes(result.status)) return result;
+
+    // The server has decided this has waited too long to be normal — usually
+    // because no judge worker is running. It knows why; waiting out the rest of
+    // the deadline would only delay a message we already have.
+    if (result.stalled) throw new Error(result.sprocket_message);
+
+    delay = Math.min(Math.round(delay * 1.4), POLL_CEILING_MS);
+  }
+
+  throw new Error("Sprocket is taking an unusually long time. Your run is still queued.");
+}
 
 export default function AcademyPage() {
   return (
@@ -116,7 +176,14 @@ function Academy() {
   const [code, setCode] = useState("");
   const [unlocking, setUnlocking] = useState<ChestTier | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [localResults, setLocalResults] = useState<RunCaseResult[] | null>(null);
+  const [submitResult, setSubmitResult] = useState<SubmissionResult | null>(null);
   const [problemNonce, setProblemNonce] = useState(0);
+
+  // Bumped on every submit; a poll loop whose nonce is stale stops touching state,
+  // so switching problems mid-judge can't drop a verdict onto the wrong screen.
+  const submitNonce = useRef(0);
 
   // Landing on the workbench with nothing picked? Take the first of today's quests.
   const activeSlug = pickedSlug ?? dashboard.data?.quests[0]?.slug ?? null;
@@ -129,6 +196,9 @@ function Academy() {
         if (cancelled) return;
         setProblem(detail);
         setCode(detail.starter_code);
+        // Results belong to the problem that produced them.
+        setLocalResults(null);
+        setSubmitResult(null);
       })
       .catch((err) => {
         if (!cancelled) setLoadError({ slug: activeSlug, message: errorMessage(err) });
@@ -174,28 +244,81 @@ function Academy() {
     }
   }
 
+  /** Try the visible examples in the browser. Earns nothing; grades nothing. */
+  async function runProblem() {
+    if (problem === null) return;
+    setRunning(true);
+    setActionError(null);
+    setSubmitResult(null);
+    try {
+      const results = await runExamples({
+        code,
+        entrypoint: problem.entrypoint,
+        preamble: problem.harness_preamble,
+        cases: problem.example_tests,
+      });
+      setLocalResults(results);
+      const held = results.filter((r) => r.passed).length;
+      setSprocketSaid(
+        held === results.length
+          ? "Examples all held! Press Submit and I'll try the hidden springs."
+          : `${held} of ${results.length} examples held — have another look.`
+      );
+    } catch (err) {
+      setActionError(errorMessage(err));
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  /**
+   * Hand the code to the judge, then poll for its verdict.
+   *
+   * Submitting no longer returns a result — the server queues the code and a
+   * judge worker runs it — so everything that used to fire off the response
+   * (confetti, the dashboard refresh, the boss round) now fires off the verdict.
+   */
   async function submitProblem() {
     if (problem === null) return;
+    const nonce = ++submitNonce.current;
     setSubmitting(true);
     setActionError(null);
+    setLocalResults(null);
     try {
-      const result = await post<SubmissionResult>(`/problems/${problem.slug}/submit`, {
+      const accepted = await post<SubmissionAccepted>(`/problems/${problem.slug}/submit`, {
         code,
         language: problem.language,
-        status: "passed",
         // Tagging the submission is what lets a boss round actually clear.
         boss_session_id: boss?.status === "running" ? boss.id : null,
       });
-      setSprocketSaid(result.sprocket_message);
-      burst(result.confetti);
-      setProblem((p) => (p === null ? p : { ...p, solved: true }));
+      if (submitNonce.current !== nonce) return;
+      setSubmitResult({
+        ...PENDING_RESULT,
+        submission_id: accepted.submission_id,
+        status: accepted.status,
+      });
+
+      const verdict = await pollForVerdict(accepted.submission_id, accepted.poll_after_ms, () =>
+        submitNonce.current === nonce
+      );
+      if (verdict === null || submitNonce.current !== nonce) return;
+
+      setSubmitResult(verdict);
+      setSprocketSaid(verdict.sprocket_message);
+      burst(verdict.confetti);
+      if (verdict.status === "passed") {
+        setProblem((p) => (p === null ? p : { ...p, solved: true }));
+      }
       dashboard.reload();
       streak.reload();
       if (boss !== null) refreshBoss();
     } catch (err) {
-      setActionError(errorMessage(err));
+      if (submitNonce.current === nonce) {
+        setActionError(errorMessage(err));
+        setSubmitResult(null);
+      }
     } finally {
-      setSubmitting(false);
+      if (submitNonce.current === nonce) setSubmitting(false);
     }
   }
 
@@ -446,8 +569,12 @@ function Academy() {
                 onCodeChange={setCode}
                 unlocking={unlocking}
                 submitting={submitting}
+                running={running}
+                localResults={localResults}
+                result={submitResult}
                 error={actionError}
                 onUnlock={unlockChest}
+                onRun={runProblem}
                 onSubmit={submitProblem}
               />
             ) : problemFailed && loadError !== null ? (

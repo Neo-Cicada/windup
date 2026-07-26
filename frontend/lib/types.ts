@@ -3,7 +3,21 @@
 export type Difficulty = "easy" | "medium" | "hard";
 export type ChestTier = "hint" | "approach" | "solution";
 export type BossStatus = "running" | "paused" | "completed" | "expired" | "abandoned";
-export type SubmissionStatus = "passed" | "failed";
+/** `pending`/`running` are queue states — the judge hasn't ruled yet. */
+export type SubmissionStatus =
+  | "pending"
+  | "running"
+  | "passed"
+  | "failed"
+  | "error"
+  | "timeout";
+
+export const TERMINAL_STATUSES: SubmissionStatus[] = [
+  "passed",
+  "failed",
+  "error",
+  "timeout",
+];
 
 export type Avatar = { body: string; head: string; accent: string };
 
@@ -74,6 +88,14 @@ export type HelpShelf = {
   solution: string | null;
 };
 
+/** A visible example case. The hidden cases that actually grade never arrive here. */
+export type TestCase = {
+  ordinal: number;
+  label: string;
+  args: unknown[];
+  expected: unknown;
+};
+
 export type ProblemDetail = Problem & {
   prompt: string;
   example_input: string;
@@ -84,6 +106,12 @@ export type ProblemDetail = Problem & {
   chests: Chests;
   unaided: boolean;
   unaided_bonus: number;
+  /** false for problems the judge can't run yet — the SQL one. */
+  graded: boolean;
+  entrypoint: string;
+  harness_preamble: string;
+  example_tests: TestCase[];
+  hidden_test_count: number;
 };
 
 export type ChestUnlockResult = {
@@ -103,17 +131,44 @@ export type Achievement = {
   earned_at: string | null;
 };
 
+/** 202 from submit — the code is queued, poll for the verdict. */
+export type SubmissionAccepted = {
+  submission_id: string;
+  status: SubmissionStatus;
+  poll_after_ms: number;
+  queue_position: number;
+};
+
+/** The first failing case. `expected` is null for a hidden one, by design. */
+export type SubmissionFailure = {
+  ordinal: number;
+  label: string;
+  hidden: boolean;
+  args: unknown[];
+  actual: unknown;
+  expected: unknown;
+  stdout: string;
+  error: string | null;
+};
+
 export type SubmissionResult = {
   submission_id: string;
   status: SubmissionStatus;
   unaided: boolean;
-  xp_awarded: number;
-  coins_awarded: number;
-  leveled_up: boolean;
+  /** null until the judge has ruled; everything below lands at once. */
+  xp_awarded: number | null;
+  coins_awarded: number | null;
+  leveled_up: boolean | null;
   sprocket_message: string;
   confetti: number;
   newly_earned: Achievement[];
-  progress: Progress;
+  progress: Progress | null;
+  tests_passed: number;
+  tests_total: number;
+  runtime_ms: number | null;
+  failure: SubmissionFailure | null;
+  /** Waiting far longer than it should — `sprocket_message` says why. */
+  stalled: boolean;
 };
 
 export type DailyQuest = {
