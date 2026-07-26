@@ -41,6 +41,34 @@ class Settings(BaseSettings):
     BOSS_DURATION_SECONDS: int = 900
     DAILY_QUESTS: int = 3
 
+    # Judge. The API never executes submitted code — it enqueues, and
+    # `python -m app.judge.worker` runs it. Scale by adding worker processes.
+    JUDGE_RUNNER: str = "wasm"  # "wasm" | "subprocess"
+    # CPython built for WASI. Fetched by scripts/fetch_python_wasm.sh.
+    JUDGE_WASM_PATH: str = "vendor/python.wasm"
+    # Fuel is an instruction counter, not a clock. Measured on the seeded
+    # catalogue: interpreter startup burns 0.24G, the heaviest problem (islands
+    # on a 200x200 grid) 1.7G, and this machine runs ~7G/sec. 8G is ~5x the
+    # worst real solve and trips an infinite loop in about a second.
+    JUDGE_FUEL: int = 8_000_000_000
+    JUDGE_MEMORY_MB: int = 256
+    # Belt-and-braces wall clock, in case a runner stalls somewhere fuel can't
+    # see (a blocking host call). Fuel is the primary cap.
+    JUDGE_TIMEOUT_SECONDS: int = 15
+    JUDGE_BATCH_SIZE: int = 5
+    JUDGE_POLL_SECONDS: float = 0.5
+    # Stops one toy from flooding the queue and starving everyone else.
+    JUDGE_MAX_PENDING_PER_USER: int = 3
+    # A claim older than this is assumed dead and gets reclaimed.
+    JUDGE_STALE_CLAIM_SECONDS: int = 120
+    JUDGE_MAX_ATTEMPTS: int = 3
+    # How long a submission may sit unclaimed before GET /submissions/{id} starts
+    # saying so. Forgetting to start the worker is the likeliest way to break the
+    # academy, and it should not present as a slow judge.
+    JUDGE_STALL_AFTER_SECONDS: int = 8
+    # A worker seen within this window counts as alive.
+    JUDGE_LIVENESS_WINDOW_SECONDS: int = 60
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def _split_origins(cls, v: object) -> object:

@@ -16,6 +16,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -46,9 +47,18 @@ class ChestUnlock(UUIDMixin, TimestampMixin, Base):
 
 
 class Submission(UUIDMixin, TimestampMixin, Base):
-    """One "Run & Submit" from the workbench."""
+    """One "Submit" from the workbench, and its trip through the judge.
+
+    This table doubles as the judge queue: the worker claims `pending` rows with
+    FOR UPDATE SKIP LOCKED, which is why the deployment needs no broker beyond
+    the Postgres that is already there.
+    """
 
     __tablename__ = "submissions"
+    __table_args__ = (
+        # The worker's claim query: oldest pending first.
+        Index("ix_submissions_queue", "status", "created_at"),
+    )
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
@@ -62,11 +72,37 @@ class Submission(UUIDMixin, TimestampMixin, Base):
 
     code: Mapped[str] = mapped_column(Text, default="", nullable=False)
     language: Mapped[str] = mapped_column(String(24), default="python", nullable=False)
-    status: Mapped[str] = mapped_column(String(16), default=SubmissionStatus.PASSED, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(16), default=SubmissionStatus.PENDING, nullable=False
+    )
     unaided: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     duration_seconds: Mapped[int | None] = mapped_column(Integer)
     xp_awarded: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     coins_awarded: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # ---- judge queue --------------------------------------------------------
+    # Set when a worker claims the row; a claim older than JUDGE_STALE_CLAIM_SECONDS
+    # is reclaimable, so a worker dying mid-run doesn't strand the submission.
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # ---- verdict ------------------------------------------------------------
+    judged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Payout happens once, when the verdict lands. Guards against a retried job
+    # paying XP twice.
+    settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    tests_passed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    tests_total: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Recorded at settle time. By the time anyone polls, progress.level already
+    # reflects the new shelf, so the before/after comparison is only available
+    # to the settlement itself.
+    leveled_up: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    runtime_ms: Mapped[int | None] = mapped_column(Integer)
+    # The first failing case only: {ordinal, label, args, expected, actual, error}.
+    # For a hidden case `expected` is omitted — args and the toy's own actual
+    # output are useful for debugging and give nothing away, but handing back the
+    # expected value would turn the hidden tests into a lookup table.
+    failure_json: Mapped[dict | None] = mapped_column(JSONB)
 
     user: Mapped[User] = relationship(back_populates="submissions")
     problem: Mapped[Problem] = relationship(lazy="selectin")

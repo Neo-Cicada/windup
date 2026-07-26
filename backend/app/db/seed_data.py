@@ -124,6 +124,95 @@ ACHIEVEMENTS: list[dict] = [
     },
 ]
 
+# ---- harness preambles ------------------------------------------------------
+# Prepended before the toy's own code, so a bare `reverseList(head)` stub is
+# actually callable. The driver in app/judge/harness.py defines `_build` and
+# `_dump` as identity and then evaluates:
+#
+#     _dump(entrypoint(*_build(args)))
+#
+# `_build` receives the whole argument list and returns the real call arguments,
+# which is what lets a problem fold two JSON values (a list of marbles plus the
+# index its tail loops back to) into one linked structure.
+
+LINKED_LIST_NODE = """
+class ListNode:
+    def __init__(self, val=0, next=None):
+        self.val = val
+        self.next = next
+"""
+
+REVERSE_LIST_PREAMBLE = (
+    LINKED_LIST_NODE
+    + """
+
+def _build(args):
+    (vals,) = args
+    head = None
+    for v in reversed(vals):
+        head = ListNode(v, head)
+    return [head]
+
+
+def _dump(node):
+    out = []
+    while node is not None:
+        out.append(node.val)
+        node = node.next
+    return out
+"""
+)
+
+CYCLE_PREAMBLE = (
+    LINKED_LIST_NODE
+    + """
+
+def _build(args):
+    vals, pos = args
+    if not vals:
+        return [None]
+    nodes = [ListNode(v) for v in vals]
+    for a, b in zip(nodes, nodes[1:]):
+        a.next = b
+    if pos >= 0:
+        nodes[-1].next = nodes[pos]
+    return [nodes[0]]
+"""
+)
+
+TREE_PREAMBLE = """
+class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+
+
+def _build(args):
+    \"\"\"Level-order list with nulls, the shape LeetCode prints trees in.\"\"\"
+    (vals,) = args
+    if not vals or vals[0] is None:
+        return [None]
+    root = TreeNode(vals[0])
+    queue, i = [root], 1
+    while queue and i < len(vals):
+        node = queue.pop(0)
+        if i < len(vals):
+            v = vals[i]
+            i += 1
+            if v is not None:
+                node.left = TreeNode(v)
+                queue.append(node.left)
+        if i < len(vals):
+            v = vals[i]
+            i += 1
+            if v is not None:
+                node.right = TreeNode(v)
+                queue.append(node.right)
+    return [root]
+"""
+
+
 PROBLEMS: list[dict] = [
     {
         "zone": "building-blocks",
@@ -164,6 +253,22 @@ PROBLEMS: list[dict] = [
             "    return []"
         ),
         "xp_reward": 50,
+        "entrypoint": "twoSum",
+        # Every case has exactly one valid pair, so comparing indices is fair.
+        "tests": [
+            {"visibility": "example", "args": [[2, 7, 11, 15], 9], "expected": [0, 1]},
+            {"visibility": "example", "args": [[3, 2, 4], 6], "expected": [1, 2]},
+            {"visibility": "hidden", "label": "duplicate blocks", "args": [[3, 3], 6],
+             "expected": [0, 1]},
+            {"visibility": "hidden", "label": "negative heights",
+             "args": [[-1, -2, -3, -4, -5], -8], "expected": [2, 4]},
+            {"visibility": "hidden", "label": "zeroes", "args": [[0, 4, 3, 0], 0],
+             "expected": [0, 3]},
+            {"visibility": "hidden", "label": "pair at the far end",
+             "args": [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 19], "expected": [8, 9]},
+            {"visibility": "hidden", "label": "skips the first block",
+             "args": [[5, 75, 25], 100], "expected": [1, 2]},
+        ],
     },
     {
         "zone": "building-blocks",
@@ -194,6 +299,21 @@ PROBLEMS: list[dict] = [
             "    return len(s) == len(t) and Counter(s) == Counter(t)"
         ),
         "xp_reward": 50,
+        "entrypoint": "isAnagram",
+        "tests": [
+            {"visibility": "example", "args": ["anagram", "nagaram"], "expected": True},
+            {"visibility": "example", "args": ["rat", "car"], "expected": False},
+            {"visibility": "hidden", "label": "two empty words", "args": ["", ""],
+             "expected": True},
+            {"visibility": "hidden", "label": "different lengths", "args": ["a", "ab"],
+             "expected": False},
+            {"visibility": "hidden", "label": "same letters, wrong counts",
+             "args": ["aacc", "ccac"], "expected": False},
+            {"visibility": "hidden", "label": "classic pair", "args": ["listen", "silent"],
+             "expected": True},
+            {"visibility": "hidden", "label": "two letters", "args": ["ab", "ba"],
+             "expected": True},
+        ],
     },
     {
         "zone": "marble-run",
@@ -239,6 +359,18 @@ PROBLEMS: list[dict] = [
             "    return prev"
         ),
         "xp_reward": 60,
+        "entrypoint": "reverseList",
+        "harness_preamble": REVERSE_LIST_PREAMBLE,
+        "tests": [
+            {"visibility": "example", "args": [[1, 2, 3, 4, 5]], "expected": [5, 4, 3, 2, 1]},
+            {"visibility": "example", "args": [[1, 2]], "expected": [2, 1]},
+            {"visibility": "hidden", "label": "empty chute", "args": [[]], "expected": []},
+            {"visibility": "hidden", "label": "single marble", "args": [[1]], "expected": [1]},
+            {"visibility": "hidden", "label": "negatives", "args": [[-1, 0, 1]],
+             "expected": [1, 0, -1]},
+            {"visibility": "hidden", "label": "repeated values", "args": [[7, 7, 7]],
+             "expected": [7, 7, 7]},
+        ],
     },
     {
         "zone": "marble-run",
@@ -277,6 +409,23 @@ PROBLEMS: list[dict] = [
             "    return False"
         ),
         "xp_reward": 60,
+        "entrypoint": "hasCycle",
+        "harness_preamble": CYCLE_PREAMBLE,
+        # Second argument is the index the tail loops back to; -1 means no loop.
+        "tests": [
+            {"visibility": "example", "args": [[3, 2, 0, -4], 1], "expected": True},
+            {"visibility": "example", "args": [[1, 2], 0], "expected": True},
+            {"visibility": "hidden", "label": "single marble, no loop", "args": [[1], -1],
+             "expected": False},
+            {"visibility": "hidden", "label": "empty chute", "args": [[], -1],
+             "expected": False},
+            {"visibility": "hidden", "label": "straight run", "args": [[1, 2, 3, 4, 5], -1],
+             "expected": False},
+            {"visibility": "hidden", "label": "tail loops to itself",
+             "args": [[1, 2, 3, 4, 5], 4], "expected": True},
+            {"visibility": "hidden", "label": "two marbles, no loop", "args": [[1, 2], -1],
+             "expected": False},
+        ],
     },
     {
         "zone": "board-game",
@@ -323,6 +472,25 @@ PROBLEMS: list[dict] = [
             "    return count"
         ),
         "xp_reward": 60,
+        "entrypoint": "numIslands",
+        "tests": [
+            {"visibility": "example",
+             "args": [[["1", "1", "0"], ["1", "0", "0"], ["0", "0", "1"]]], "expected": 2},
+            {"visibility": "example",
+             "args": [[["1", "1", "1", "1", "0"], ["1", "1", "0", "1", "0"],
+                       ["1", "1", "0", "0", "0"], ["0", "0", "0", "0", "0"]]],
+             "expected": 1},
+            {"visibility": "hidden", "label": "three separate patches",
+             "args": [[["1", "1", "0", "0", "0"], ["1", "1", "0", "0", "0"],
+                       ["0", "0", "1", "0", "0"], ["0", "0", "0", "1", "1"]]],
+             "expected": 3},
+            {"visibility": "hidden", "label": "all water", "args": [[["0"]]], "expected": 0},
+            {"visibility": "hidden", "label": "one square of land", "args": [[["1"]]],
+             "expected": 1},
+            {"visibility": "hidden", "label": "empty row", "args": [[[]]], "expected": 0},
+            {"visibility": "hidden", "label": "stripes in a single row",
+             "args": [[["1", "0", "1", "0", "1"]]], "expected": 3},
+        ],
     },
     {
         "zone": "board-game",
@@ -347,6 +515,18 @@ PROBLEMS: list[dict] = [
             "    return 1 + max(maxDepth(root.left), maxDepth(root.right))"
         ),
         "xp_reward": 50,
+        "entrypoint": "maxDepth",
+        "harness_preamble": TREE_PREAMBLE,
+        "tests": [
+            {"visibility": "example", "args": [[3, 9, 20, None, None, 15, 7]], "expected": 3},
+            {"visibility": "example", "args": [[1, None, 2]], "expected": 2},
+            {"visibility": "hidden", "label": "empty tree", "args": [[]], "expected": 0},
+            {"visibility": "hidden", "label": "root only", "args": [[0]], "expected": 1},
+            {"visibility": "hidden", "label": "full tree", "args": [[1, 2, 3, 4, 5]],
+             "expected": 3},
+            {"visibility": "hidden", "label": "leaning left", "args": [[1, 2, None, 3, None, 4]],
+             "expected": 4},
+        ],
     },
     {
         "zone": "stacking-cups",
@@ -383,6 +563,20 @@ PROBLEMS: list[dict] = [
             "    return not stack"
         ),
         "xp_reward": 50,
+        "entrypoint": "isValid",
+        "tests": [
+            {"visibility": "example", "args": ["{[()]}"], "expected": True},
+            {"visibility": "example", "args": ["(]"], "expected": False},
+            {"visibility": "hidden", "label": "no cups at all", "args": [""], "expected": True},
+            {"visibility": "hidden", "label": "one cup left standing", "args": ["("],
+             "expected": False},
+            {"visibility": "hidden", "label": "three towers side by side", "args": ["()[]{}"],
+             "expected": True},
+            {"visibility": "hidden", "label": "crossed, not nested", "args": ["([)]"],
+             "expected": False},
+            {"visibility": "hidden", "label": "closes before it opens", "args": [")("],
+             "expected": False},
+        ],
     },
     {
         "zone": "puzzle-box",
@@ -411,6 +605,17 @@ PROBLEMS: list[dict] = [
             "    return b"
         ),
         "xp_reward": 50,
+        "entrypoint": "climbStairs",
+        "tests": [
+            {"visibility": "example", "args": [5], "expected": 8},
+            {"visibility": "example", "args": [2], "expected": 2},
+            {"visibility": "hidden", "label": "one step", "args": [1], "expected": 1},
+            {"visibility": "hidden", "label": "three steps", "args": [3], "expected": 3},
+            {"visibility": "hidden", "label": "ten steps", "args": [10], "expected": 89},
+            {"visibility": "hidden", "label": "twenty steps", "args": [20], "expected": 10946},
+            {"visibility": "hidden", "label": "tall shelf — naive recursion will crawl",
+             "args": [45], "expected": 1836311903},
+        ],
     },
     {
         "zone": "puzzle-box",
@@ -446,6 +651,19 @@ PROBLEMS: list[dict] = [
             "    return -1 if dp[amount] == float('inf') else dp[amount]"
         ),
         "xp_reward": 80,
+        "entrypoint": "coinChange",
+        "tests": [
+            {"visibility": "example", "args": [[1, 5, 6, 9], 11], "expected": 2},
+            {"visibility": "example", "args": [[2], 3], "expected": -1},
+            {"visibility": "hidden", "label": "nothing to pay", "args": [[1], 0], "expected": 0},
+            {"visibility": "hidden", "label": "standard change", "args": [[1, 2, 5], 11],
+             "expected": 3},
+            {"visibility": "hidden", "label": "greedy would overpay", "args": [[2, 5, 10, 1], 27],
+             "expected": 4},
+            {"visibility": "hidden", "label": "awkward denominations",
+             "args": [[186, 419, 83, 408], 6249], "expected": 20},
+            {"visibility": "hidden", "label": "cannot be paid", "args": [[5], 3], "expected": -1},
+        ],
     },
     {
         "zone": "toy-kitchen",
@@ -479,5 +697,8 @@ PROBLEMS: list[dict] = [
             ") AS second_highest;"
         ),
         "xp_reward": 60,
+        # The judge only runs Python. Until there's a SQL runner this problem
+        # keeps the old self-declared path — see `graded` in models/content.py.
+        "graded": False,
     },
 ]
