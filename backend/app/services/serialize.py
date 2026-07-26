@@ -11,7 +11,6 @@ def user_out(user: User) -> UserOut:
         email=user.email,
         toy_name=user.toy_name,
         trainee_no=f"{user.trainee_no:04d}",
-        plan=user.plan,
         avatar=AvatarOut(
             body=user.avatar_body, head=user.avatar_head, accent=user.avatar_accent
         ),

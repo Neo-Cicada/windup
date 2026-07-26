@@ -9,19 +9,12 @@ from app.schemas.user import (
     AccountUpdateIn,
     EmailChangeIn,
     PasswordChangeIn,
-    PlanOut,
     UserOut,
 )
 from app.services.progress import build_progress_out
 from app.services.serialize import user_out
 
 router = APIRouter(tags=["account"])
-
-PLANS = [
-    PlanOut(key="free", name="Free", price="$0", perk="3 quests/day"),
-    PlanOut(key="pro", name="Pro", price="$9/mo", perk="Unlimited + bosses"),
-    PlanOut(key="team", name="Playroom", price="$29/mo", perk="For toy squads"),
-]
 
 
 @router.get("/me", response_model=UserOut)
@@ -33,8 +26,7 @@ async def read_me(user: CurrentUser) -> UserOut:
 async def update_me(payload: AccountUpdateIn, user: CurrentUser, db: DbSession) -> UserOut:
     """Backs the profile screen's "Save account" button — display preferences only.
 
-    Credentials go through /me/password and /me/email; the subscription tier is set by
-    billing, not by the account holder.
+    Credentials go through /me/password and /me/email.
     """
     if payload.toy_name is not None:
         user.toy_name = payload.toy_name.strip()
@@ -88,8 +80,3 @@ async def change_email(payload: EmailChangeIn, user: CurrentUser, db: DbSession)
 @router.get("/me/progress", response_model=ProgressOut)
 async def read_progress(db: DbSession, progress: CurrentProgress) -> ProgressOut:
     return await build_progress_out(db, progress)
-
-
-@router.get("/plans", response_model=list[PlanOut])
-async def list_plans() -> list[PlanOut]:
-    return PLANS

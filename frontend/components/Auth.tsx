@@ -75,7 +75,7 @@ export function Auth({ mode, showWelcome, pending, error, onBack, onSubmit, onSw
     ? "Create your toy, pick a corner, and start turning interview prep into playtime."
     : "Your shelves, streaks and merit badges are exactly where you left them.";
   const formTitle = isSignup ? "Create your toy" : "Log in";
-  const formSub = isSignup ? "Free forever. No batteries required." : "Wind yourself back up.";
+  const formSub = isSignup ? "No batteries required." : "Wind yourself back up.";
   const submitLabel = pending
     ? isSignup
       ? "Unboxing…"
@@ -104,10 +104,14 @@ export function Auth({ mode, showWelcome, pending, error, onBack, onSubmit, onSw
             <div style={{ fontFamily: FREDOKA, fontWeight: 500, fontSize: 10, letterSpacing: 3, color: "#C9A96A" }}>ACADEMY</div>
           </div>
         </div>
-        <div style={{ margin: "auto 0", position: "relative" }}>
-          <h2 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 34, color: "#fff", lineHeight: 1.1, margin: "0 0 14px", maxWidth: 360 }}>{panelTitle}</h2>
-          <p style={{ color: "#D6C7B4", fontSize: 15, lineHeight: 1.55, maxWidth: 340, margin: "0 0 34px" }}>{panelBody}</p>
-          <PanelSprocket />
+        {/* The pitch and Sprocket sit centred in the panel; the max-widths keep the
+            line lengths short, so they need auto margins to stay in the middle. */}
+        <div style={{ margin: "auto 0", position: "relative", textAlign: "center" }}>
+          <h2 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 34, color: "#fff", lineHeight: 1.1, margin: "0 auto 14px", maxWidth: 360 }}>{panelTitle}</h2>
+          <p style={{ color: "#D6C7B4", fontSize: 15, lineHeight: 1.55, maxWidth: 340, margin: "0 auto 34px" }}>{panelBody}</p>
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <PanelSprocket />
+          </div>
         </div>
         <div style={{ position: "relative", color: "#8B7B63", fontSize: 12, fontWeight: 700 }}>Trusted by 40,000+ toys in training</div>
       </div>

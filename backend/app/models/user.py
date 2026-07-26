@@ -9,7 +9,6 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDMixin
-from app.models.enums import Plan
 
 if TYPE_CHECKING:
     from app.models.gameplay import (
@@ -37,8 +36,6 @@ class User(UUIDMixin, TimestampMixin, Base):
     avatar_body: Mapped[str] = mapped_column(String(9), default="#6FBF73", nullable=False)
     avatar_head: Mapped[str] = mapped_column(String(9), default="#F7C948", nullable=False)
     avatar_accent: Mapped[str] = mapped_column(String(9), default="#EF5B54", nullable=False)
-
-    plan: Mapped[str] = mapped_column(String(16), default=Plan.FREE, nullable=False)
 
     notify_streak: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     notify_weekly: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

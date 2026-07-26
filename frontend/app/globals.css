@@ -193,8 +193,7 @@ input {
   .acad-hero-side {
     width: 100% !important;
   }
-  .acad-acct-grid,
-  .acad-plan-grid {
+  .acad-acct-grid {
     grid-template-columns: 1fr !important;
   }
 }

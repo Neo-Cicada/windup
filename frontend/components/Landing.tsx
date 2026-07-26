@@ -77,7 +77,6 @@ export function Landing({ onLogin, onSignup }: Props) {
         <div className="nav-links">
           <a href="#feat">Features</a>
           <a href="#how">How it works</a>
-          <a href="#prices">Pricing</a>
         </div>
         <PushButton onClick={onLogin} bg="#fff" color="#3A2E27" shadow="#2E2620" style={{ borderRadius: 13, fontSize: 14, padding: "9px 18px", borderWidth: 3 }}>
           Log in
@@ -180,12 +179,12 @@ export function Landing({ onLogin, onSignup }: Props) {
       </section>
 
       {/* FINAL CTA */}
-      <section id="prices" style={{ maxWidth: 1180, margin: "0 auto", padding: "0 40px 60px" }}>
+      <section id="join" style={{ maxWidth: 1180, margin: "0 auto", padding: "0 40px 60px" }}>
         <div style={{ background: "#EF5B54", border: "4px solid #2E2620", borderRadius: 28, padding: 48, textAlign: "center", boxShadow: "0 12px 0 #A9302B", position: "relative", overflow: "hidden" }}>
           <div style={abs({ top: -40, left: -40, width: 160, height: 160, background: "rgba(255,255,255,.12)", borderRadius: "50%" })} />
           <div style={abs({ bottom: -50, right: -30, width: 180, height: 180, background: "rgba(255,255,255,.10)", borderRadius: "50%" })} />
           <h2 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 40, color: "#fff", margin: "0 0 12px", position: "relative" }}>The toybox is open. Come play.</h2>
-          <p style={{ color: "#FFE3E1", fontSize: 16, fontWeight: 700, margin: "0 0 28px", position: "relative" }}>Free forever to start. No credit card, no batteries required.</p>
+          <p style={{ color: "#FFE3E1", fontSize: 16, fontWeight: 700, margin: "0 0 28px", position: "relative" }}>Every shelf, every quest, every boss. No batteries required.</p>
           <PushButton onClick={onSignup} bg="#F7C948" color="#2E2620" shadow="#2E2620" style={{ borderRadius: 18, fontSize: 19, padding: "16px 40px", borderWidth: 4, boxShadowY: 6, position: "relative" }}>
             Create your toy
           </PushButton>

@@ -54,7 +54,7 @@ async def test_dashboard_returns_one_payload(client: AsyncClient, auth: dict[str
     assert body["toy_name"] == "Patches"
     assert body["progress"]["level"] == 1
     assert body["badges_label"].endswith("/12")
-    assert len(body["quests"]) == 3  # free plan
+    assert len(body["quests"]) == 3  # settings.DAILY_QUESTS
     assert body["rank"] == 1
 
 
@@ -168,16 +168,6 @@ async def test_account_can_be_saved(client: AsyncClient, auth: dict[str, str]) -
     body = resp.json()
     assert body["toy_name"] == "Patchwork"
     assert body["notifications"] == {"streak": False, "weekly": True, "bosses": True}
-
-
-async def test_profile_patch_cannot_grant_a_paid_plan(
-    client: AsyncClient, auth: dict[str, str]
-) -> None:
-    """The subscription tier is a paid entitlement — never user-writable."""
-    resp = await client.patch("/api/v1/me", headers=auth, json={"plan": "pro"})
-    assert resp.status_code == 200
-    assert resp.json()["plan"] == "free"  # ignored, not applied
-    assert (await client.get("/api/v1/me", headers=auth)).json()["plan"] == "free"
 
 
 async def test_profile_patch_cannot_change_credentials(

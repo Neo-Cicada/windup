@@ -31,8 +31,6 @@ from app.services.progress import (
 
 router = APIRouter(tags=["playroom"])
 
-QUESTS_PER_DAY = {"free": settings.FREE_PLAN_DAILY_QUESTS, "pro": 5, "team": 5}
-
 _QUEST_LOAD = selectinload(DailyQuest.problem).selectinload(Problem.zone)
 
 
@@ -56,7 +54,7 @@ async def ensure_today_quests(db: AsyncSession, user: User) -> list[DailyQuest]:
     if existing:
         return existing
 
-    wanted = QUESTS_PER_DAY.get(user.plan, settings.FREE_PLAN_DAILY_QUESTS)
+    wanted = settings.DAILY_QUESTS
     solved = await solved_problem_ids(db, user.id)
 
     candidates = list(

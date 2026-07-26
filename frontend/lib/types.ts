@@ -1,6 +1,5 @@
 // Mirrors backend/app/schemas — keep field names identical to the JSON on the wire.
 
-export type Plan = "free" | "pro" | "team";
 export type Difficulty = "easy" | "medium" | "hard";
 export type ChestTier = "hint" | "approach" | "solution";
 export type BossStatus = "running" | "paused" | "completed" | "expired" | "abandoned";
@@ -15,7 +14,6 @@ export type User = {
   email: string;
   toy_name: string;
   trainee_no: string;
-  plan: Plan;
   avatar: Avatar;
   notifications: NotificationPrefs;
 };
@@ -197,4 +195,3 @@ export type DashboardData = {
   wind_up_available: boolean;
 };
 
-export type PlanOption = { key: string; name: string; price: string; perk: string };
