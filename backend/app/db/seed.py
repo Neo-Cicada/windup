@@ -9,8 +9,9 @@ import asyncio
 import random
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.security import hash_password
@@ -19,8 +20,11 @@ from app.db.session import SessionLocal, engine
 from app.models import (
     Achievement,
     Problem,
+    ProblemTest,
     Progress,
     Submission,
+    SubmissionStatus,
+    TestVisibility,
     User,
     XpEvent,
     XpSource,
@@ -52,14 +56,32 @@ async def seed_catalogue(db: AsyncSession) -> None:
     for order, spec in enumerate(PROBLEMS):
         data = dict(spec)
         zone = zones_by_slug[data.pop("zone")]
+        cases = data.pop("tests", [])
         problem = await db.scalar(select(Problem).where(Problem.slug == data["slug"]))
         if problem is None:
-            db.add(Problem(**data, zone_id=zone.id, sort_order=order))
+            problem = Problem(**data, zone_id=zone.id, sort_order=order)
+            db.add(problem)
         else:
             for key, value in data.items():
                 setattr(problem, key, value)
             problem.zone_id = zone.id
             problem.sort_order = order
+
+        # Test cases are replaced wholesale rather than diffed — they're
+        # content, and re-seeding should leave exactly what seed_data declares.
+        await db.flush()
+        await db.execute(delete(ProblemTest).where(ProblemTest.problem_id == problem.id))
+        for ordinal, case in enumerate(cases):
+            db.add(
+                ProblemTest(
+                    problem_id=problem.id,
+                    ordinal=ordinal,
+                    visibility=case.get("visibility", TestVisibility.HIDDEN),
+                    label=case.get("label", ""),
+                    args_json=case["args"],
+                    expected_json=case["expected"],
+                )
+            )
 
     for order, spec in enumerate(ACHIEVEMENTS):
         badge = await db.scalar(select(Achievement).where(Achievement.slug == spec["slug"]))
@@ -93,7 +115,13 @@ async def seed_demo_user(db: AsyncSession) -> User:
 
     rng = random.Random(471)
     today = datetime.now(UTC).date()
-    problems = list((await db.scalars(select(Problem).order_by(Problem.sort_order))).all())
+    problems = list(
+        (
+            await db.scalars(
+                select(Problem).options(selectinload(Problem.tests)).order_by(Problem.sort_order)
+            )
+        ).all()
+    )
 
     # Solve a handful of problems across the past two weeks.
     for offset, problem in enumerate(problems[:5]):
@@ -104,17 +132,27 @@ async def seed_demo_user(db: AsyncSession) -> User:
         user.progress.solved_count += 1
         if unaided:
             user.progress.unaided_count += 1
+        # These never went through the judge, so fill in the verdict columns a
+        # real run would have written — otherwise the demo history reads as
+        # perpetually pending on the workbench.
+        judged = datetime.now(UTC) - timedelta(days=len(problems[:5]) - offset)
+        total = len(problem.tests)
         db.add(
             Submission(
                 user_id=user.id,
                 problem_id=problem.id,
                 code=problem.solution,
                 language=problem.language,
-                status="passed",
+                status=SubmissionStatus.PASSED,
                 unaided=unaided,
                 duration_seconds=rng.randint(240, 1400),
                 xp_awarded=outcome.xp_awarded,
                 coins_awarded=outcome.coins_awarded,
+                judged_at=judged,
+                settled_at=judged,
+                tests_passed=total,
+                tests_total=total,
+                runtime_ms=rng.randint(40, 260),
             )
         )
         db.add(

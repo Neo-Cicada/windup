@@ -1,27 +1,34 @@
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import CurrentProgress, CurrentUser, DbSession
-from app.models import ChestTier, DailyQuest, Problem, Submission, XpSource, Zone
-from app.models.gameplay import ChestUnlock, XpEvent
+from app.api.deps import CurrentUser, DbSession
+from app.core.config import settings
+from app.models import (
+    ChestTier,
+    Problem,
+    Submission,
+    SubmissionStatus,
+    TestVisibility,
+    Zone,
+)
+from app.models.gameplay import ChestUnlock
 from app.schemas.academy import (
-    AchievementOut,
     ChestsOut,
     ChestUnlockOut,
     HelpShelfOut,
     ProblemDetailOut,
     ProblemOut,
+    SubmissionAcceptedOut,
     SubmissionIn,
-    SubmissionResultOut,
+    TestCaseOut,
 )
-from app.services import achievements as achievements_service
-from app.services.leveling import apply_xp, level_name, touch_streak
-from app.services.progress import build_progress_out, solved_problem_ids, today_utc
+from app.services.progress import solved_problem_ids
 from app.services.serialize import problem_out
+from app.services.submissions import settle
 
 router = APIRouter(prefix="/problems", tags=["problems"])
 
@@ -34,7 +41,9 @@ CHEST_LABELS = {
 
 async def _get_problem(db: AsyncSession, slug: str) -> Problem:
     problem = await db.scalar(
-        select(Problem).options(selectinload(Problem.zone)).where(Problem.slug == slug)
+        select(Problem)
+        .options(selectinload(Problem.zone), selectinload(Problem.tests))
+        .where(Problem.slug == slug)
     )
     if problem is None:
         raise HTTPException(
@@ -111,6 +120,29 @@ async def read_problem(slug: str, db: DbSession, user: CurrentUser) -> ProblemDe
         chests=chests,
         unaided=unaided,
         unaided_bonus=problem.xp_reward,
+        graded=problem.graded,
+        entrypoint=problem.entrypoint,
+        # The browser needs the adapters to run the examples locally; they define
+        # ListNode and friends, and give nothing away that the prompt doesn't.
+        harness_preamble=problem.harness_preamble,
+        example_tests=[
+            TestCaseOut(
+                ordinal=t.ordinal,
+                label=t.label or f"Example {i + 1}",
+                args=t.args_json,
+                expected=t.expected_json,
+            )
+            for i, t in enumerate(
+                sorted(
+                    (t for t in problem.tests if t.visibility == TestVisibility.EXAMPLE),
+                    key=lambda t: t.ordinal,
+                )
+            )
+        ],
+        # A count, not the cases. The toy should know how much is being checked.
+        hidden_test_count=sum(
+            1 for t in problem.tests if t.visibility == TestVisibility.HIDDEN
+        ),
     )
 
 
@@ -146,45 +178,44 @@ async def unlock_chest(
     )
 
 
-@router.post("/{slug}/submit", response_model=SubmissionResultOut)
+@router.post(
+    "/{slug}/submit",
+    response_model=SubmissionAcceptedOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 async def submit_problem(
     slug: str,
     payload: SubmissionIn,
     db: DbSession,
     user: CurrentUser,
-    progress: CurrentProgress,
-) -> SubmissionResultOut:
-    """Run & Submit from the workbench: score it, pay out charge, check badges."""
+) -> SubmissionAcceptedOut:
+    """Hand the code to the judge. The verdict arrives at GET /submissions/{id}.
+
+    This endpoint deliberately executes nothing. It records the submission as
+    pending and returns; a judge worker picks it up. That is what keeps one
+    toy's infinite loop from stalling everyone else's requests, and it is why
+    there is no longer any way for the client to say whether it passed.
+    """
     problem = await _get_problem(db, slug)
     chests = await _chests(db, user.id, problem.id)
     unaided = not (chests.hint or chests.approach or chests.solution)
-    passed = payload.status == "passed"
 
-    already_solved = (
+    in_flight = int(
         await db.scalar(
-            select(Submission.id).where(
+            select(func.count())
+            .select_from(Submission)
+            .where(
                 Submission.user_id == user.id,
-                Submission.problem_id == problem.id,
-                Submission.status == "passed",
+                Submission.status.in_([SubmissionStatus.PENDING, SubmissionStatus.RUNNING]),
             )
         )
-        is not None
+        or 0
     )
-
-    xp_award = 0
-    if passed and not already_solved:
-        xp_award = problem.xp_reward * 2 if unaided else problem.xp_reward
-
-    outcome = apply_xp(progress, xp_award)
-
-    if passed and not already_solved:
-        progress.solved_count += 1
-        if unaided:
-            progress.unaided_count += 1
-
-    today = today_utc()
-    if passed:
-        touch_streak(progress, today)
+    if in_flight >= settings.JUDGE_MAX_PENDING_PER_USER:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Sprocket is still testing your last few springs — wait for those first.",
+        )
 
     submission = Submission(
         user_id=user.id,
@@ -192,93 +223,24 @@ async def submit_problem(
         boss_session_id=payload.boss_session_id,
         code=payload.code,
         language=payload.language or problem.language,
-        status=payload.status,
+        status=SubmissionStatus.PENDING,
         unaided=unaided,
         duration_seconds=payload.duration_seconds,
-        xp_awarded=outcome.xp_awarded,
-        coins_awarded=outcome.coins_awarded,
     )
     db.add(submission)
 
-    if xp_award:
-        db.add(
-            XpEvent(
-                user_id=user.id,
-                amount=xp_award,
-                source=XpSource.SOLVE,
-                note=f"Solved {problem.title}",
-                happened_on=today,
-            )
-        )
-
-    # Close out today's quest card for this problem.
-    if passed:
-        quest = await db.scalar(
-            select(DailyQuest).where(
-                DailyQuest.user_id == user.id,
-                DailyQuest.problem_id == problem.id,
-                DailyQuest.quest_date == today,
-            )
-        )
-        if quest is not None:
-            quest.progress_pct = 100
-            quest.completed_at = datetime.now(UTC)
-
-    await db.flush()
-    newly = await achievements_service.evaluate(db, user.id, progress) if passed else []
-    for badge in newly:
-        badge_outcome = apply_xp(progress, badge.xp_reward)
-        if badge_outcome.xp_awarded:
-            db.add(
-                XpEvent(
-                    user_id=user.id,
-                    amount=badge.xp_reward,
-                    source=XpSource.ACHIEVEMENT,
-                    note=f"Earned {badge.name}",
-                    happened_on=today,
-                )
-            )
+    if not problem.graded:
+        # No runner for this language yet, so there is nothing to judge. It
+        # settles immediately, on the old honour system.
+        submission.status = SubmissionStatus.PASSED
+        submission.judged_at = datetime.now(UTC)
+        await db.flush()
+        await settle(db, submission)
 
     await db.commit()
-    await db.refresh(progress)
 
-    if not passed:
-        message = "Not quite — the marbles jammed. Wind up and try again!"
-        confetti = 0
-    elif already_solved:
-        message = "Already fixed this toy — nice practice run, no extra charge."
-        confetti = 12
-    elif outcome.leveled_up:
-        message = (
-            f"LEVEL UP! You climbed onto the {level_name(progress.level)} shelf. "
-            "Whirr-whirr-hooray!"
-        )
-        confetti = 80
-    elif unaided:
-        message = "Solved UNAIDED — full bonus! You clever little toy."
-        confetti = 34
-    else:
-        message = f"Solved with help — still counts! +{xp_award} charge."
-        confetti = 34
-
-    return SubmissionResultOut(
+    return SubmissionAcceptedOut(
         submission_id=submission.id,
-        status=payload.status,
-        unaided=unaided,
-        xp_awarded=outcome.xp_awarded,
-        coins_awarded=outcome.coins_awarded,
-        leveled_up=outcome.leveled_up,
-        sprocket_message=message,
-        confetti=confetti,
-        newly_earned=[
-            AchievementOut(
-                slug=b.slug,
-                name=b.name,
-                description=b.description,
-                color=b.color,
-                earned=True,
-            )
-            for b in newly
-        ],
-        progress=await build_progress_out(db, progress),
+        status=submission.status,
+        queue_position=in_flight,
     )

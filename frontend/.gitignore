@@ -40,3 +40,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Pyodide runtime for the in-browser "Run" button — copied by scripts/copy-pyodide.mjs
+/public/pyodide/pyodide*
+/public/pyodide/python_stdlib.zip

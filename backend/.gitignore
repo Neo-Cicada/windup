@@ -1,4 +1,6 @@
 .venv/
+# CPython-WASI build for the judge — 20MB, fetched by scripts/fetch_python_wasm.sh
+vendor/
 __pycache__/
 *.py[cod]
 .env

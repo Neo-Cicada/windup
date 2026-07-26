@@ -8,6 +8,7 @@ from app.api.v1.endpoints import (
     leaderboard,
     problems,
     quests,
+    submissions,
     users,
     zones,
 )
@@ -18,6 +19,7 @@ api_router.include_router(users.router)
 api_router.include_router(quests.router)
 api_router.include_router(zones.router)
 api_router.include_router(problems.router)
+api_router.include_router(submissions.router)
 api_router.include_router(achievements.router)
 api_router.include_router(analytics.router)
 api_router.include_router(leaderboard.router)

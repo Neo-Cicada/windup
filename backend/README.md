@@ -96,10 +96,14 @@ except signup, login, refresh, and `/health`.
 | `GET` | `/problems` | List; filter by `zone`, `difficulty` |
 | `GET` | `/problems/{slug}` | Detail. **Locked tiers come back as `null`** — the server never leaks a chest you haven't opened |
 | `POST` | `/problems/{slug}/chests/{tier}` | Open `hint` \| `approach` \| `solution`; forfeits the unaided bonus |
-| `POST` | `/problems/{slug}/submit` | Run & Submit: awards charge, updates the quest card, checks badges |
+| `POST` | `/problems/{slug}/submit` | Queue the code for judging. **202**, returns a submission id — it does not run anything |
+| `GET` | `/submissions/{id}` | Poll for the verdict. Verdict fields are `null` until the judge has ruled |
 
 Scoring matches the frontend: an unaided solve pays double the problem's reward
 (120 for a 60-point toy), an aided solve pays the base, and re-solving pays nothing.
+
+Submitting is asynchronous, and `SubmissionIn` has no `status` field — the client
+cannot declare its own verdict. See **The judge** below.
 
 ### Boss battles — `screens/BossBattle.tsx`
 
@@ -164,11 +168,67 @@ backend/
 - **Zone** → **Problem** (1-n): a toy corner and its problems, help text on the problem
 - **ChestUnlock**: which tiers a toy has opened per problem — this is what makes a
   solve "aided"
-- **Submission**: every Run & Submit, with the charge it paid out
+- **ProblemTest**: the graded cases. `example` ones ship to the client for the
+  in-browser Run button; `hidden` ones never leave the server
+- **Submission**: every submit, its place in the judge queue, its verdict, and the
+  charge it paid out. Doubles as the queue table
 - **DailyQuest**: today's three cards
 - **XpEvent**: append-only charge ledger driving the weekly chart and streak heatmap
 - **Achievement** / **UserAchievement**: the merit sash
 - **BossSession**: timed mock rounds
+
+## The judge
+
+Submitted code is executed, and the server decides whether it passed. Two
+processes are involved and neither of them is the one serving requests:
+
+```bash
+./scripts/fetch_python_wasm.sh            # once: the CPython-WASI build (20MB, gitignored)
+uv run python -m app.judge.worker         # the judge; run as many as you need
+uv run python -m app.judge.worker --once  # drain the queue and exit
+```
+
+`POST /submit` validates and inserts a `pending` submission, then returns. Workers
+claim rows with `FOR UPDATE SKIP LOCKED` — which is why this needs no broker beyond
+the Postgres already here — run them, write the verdict, and settle the payout.
+**The API never executes submitted code**: one toy's infinite loop burns a worker,
+not the event loop serving everyone else.
+
+`app/judge/`:
+
+- `harness.py` assembles `default adapters + the problem's preamble + the toy's
+  code + a driver`. Every problem is called the same way, `_dump(entrypoint(*_build(args)))`,
+  so nothing needs per-problem branching; a problem that needs a `ListNode` defines
+  it, and overrides `_build`/`_dump`, in its `harness_preamble`.
+- `runner.py` runs it. `WasmRunner` (default) executes CPython-on-WASI under
+  wasmtime: fuel metering caps CPU, a store memory limit caps allocation, and
+  because no directory is ever preopened the guest has no filesystem and no
+  sockets. `SubprocessRunner` is a development fallback that does **not** sandbox,
+  and refuses to be selected outside `ENV=development`.
+- `grade.py` compares. **Expected values never enter the sandbox** — only arguments
+  go in, and the host does the comparison. Submitted code shares a process with the
+  driver and can print whatever it likes, but with no expected values in reach the
+  only way to forge a pass is to emit correct answers, which is solving the problem.
+- `worker.py` is the loop. `abandon_exhausted` sweeps runs whose worker died on
+  their final attempt — `claim_batch` skips rows at the attempt ceiling, so
+  without the sweep they would stay `running` forever.
+
+`settle()` takes a `SELECT … FOR UPDATE` on the toy's `progress` row before it
+touches anything. Every step after that is a read-modify-write on shared state —
+the XP counters, `solved_count`, the streak, and the probe deciding whether the
+solve pays — so two workers settling for one toy without the lock lose a solve
+from the counters while both submissions tell the client they paid. That probe
+also asks whether a previous run has been *settled*, not merely whether another
+passing run exists: two unsettled passing runs would otherwise each defer to the
+other and neither would pay.
+
+Tuning lives in `app/core/config.py` as `JUDGE_*` settings, not as literals.
+`JUDGE_FUEL` is an instruction budget, not a clock: interpreter startup burns
+0.24G, the heaviest seeded problem 1.7G, and the default 8G trips a runaway loop
+in about half a second.
+
+A problem with `graded=False` (the SQL one — there is no SQL runner yet) skips the
+judge and settles inline on the old honour system.
 
 ## The frontend
 

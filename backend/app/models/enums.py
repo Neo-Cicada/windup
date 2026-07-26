@@ -16,8 +16,29 @@ class ChestTier(StrEnum):
 
 
 class SubmissionStatus(StrEnum):
+    """A submission's place in the judging pipeline, then its verdict.
+
+    PENDING/RUNNING are queue states — a submission in one of them has not been
+    graded and must never count as an attempt, a solve, or a boss round.
+    """
+
+    PENDING = "pending"
+    RUNNING = "running"
     PASSED = "passed"
     FAILED = "failed"
+    ERROR = "error"  # the code raised before every case could be judged
+    TIMEOUT = "timeout"  # burned the whole fuel budget
+
+    @property
+    def is_terminal(self) -> bool:
+        return self not in (SubmissionStatus.PENDING, SubmissionStatus.RUNNING)
+
+
+class TestVisibility(StrEnum):
+    """Example cases ship to the client; hidden ones never leave the server."""
+
+    EXAMPLE = "example"
+    HIDDEN = "hidden"
 
 
 class BossStatus(StrEnum):
