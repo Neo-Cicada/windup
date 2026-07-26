@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Landing } from "@/components/Landing";
 import { Auth, type AuthMode, type AuthValues } from "@/components/Auth";
 import { Confetti, makeBurst, type ConfettiPiece } from "@/components/Confetti";
+import { Winding } from "@/components/ScreenState";
 import { errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
@@ -32,10 +33,12 @@ export default function Page() {
     };
   }, []);
 
-  // Already wound up? The forms have nothing to offer — go straight to the academy.
+  // Already wound up? Neither the pitch nor the forms have anything to offer — go
+  // straight to the academy. The one exception is the post-login celebration, which
+  // owns its own navigation so the confetti gets to finish.
   useEffect(() => {
-    if (status === "authed" && view !== "landing") router.replace("/academy");
-  }, [status, view, router]);
+    if (status === "authed" && !showWelcome) router.replace("/academy");
+  }, [status, showWelcome, router]);
 
   const go = useCallback((next: View) => {
     setView(next);
@@ -71,6 +74,17 @@ export default function Page() {
     },
     [burst, view, router, login, signup]
   );
+
+  // A confirmed session is on its way out of this route, so don't paint the pitch at it.
+  // "loading" still shows the landing page: with no stored token the check resolves in a
+  // tick, and a spinner in front of the public page would flicker for every new visitor.
+  if (status === "authed" && !showWelcome) {
+    return (
+      <div style={{ minHeight: "100vh", background: pageBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Winding label="Off to the academy…" />
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: pageBg }}>
