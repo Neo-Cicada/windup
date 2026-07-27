@@ -10,44 +10,41 @@ export const FREDOKA = "var(--font-fredoka), system-ui, sans-serif";
 export const DARK = "#2E2620";
 export const MONO = "ui-monospace, Menlo, monospace";
 
-export type ScreenKey =
-  | "dashboard"
-  | "quests"
-  | "problem"
-  | "boss"
-  | "achievements"
-  | "analytics"
-  | "leaderboard"
-  | "workshop";
-
 export type NavItem = {
-  key: ScreenKey;
+  href: string;
+  /** What the sidebar button reads. */
   label: string;
+  /** What the topbar and the document title read — only "Problem" differs. */
+  title: string;
   sub: string;
   color: string;
 };
 
 export const NAV: NavItem[] = [
-  { key: "dashboard", label: "Playroom", sub: "Home", color: "#EF5B54" },
-  { key: "quests", label: "Quest Map", sub: "Explore", color: "#4FB0E5" },
-  { key: "problem", label: "Problem", sub: "Today's toy", color: "#6FBF73" },
-  { key: "boss", label: "Boss Battle", sub: "Mock round", color: "#8B6FD6" },
-  { key: "achievements", label: "Merit Sash", sub: "Badges", color: "#F7C948" },
-  { key: "analytics", label: "Analytics", sub: "Progress", color: "#E08A3C" },
-  { key: "leaderboard", label: "Shelf of Fame", sub: "Ranks", color: "#3E8FC4" },
-  { key: "workshop", label: "Profile", sub: "Account", color: "#4FB0E5" },
+  { href: "/academy", label: "Playroom", title: "Playroom", sub: "Home", color: "#EF5B54" },
+  { href: "/academy/quests", label: "Quest Map", title: "Quest Map", sub: "Explore", color: "#4FB0E5" },
+  { href: "/academy/problem", label: "Problem", title: "Problem View", sub: "Today's toy", color: "#6FBF73" },
+  { href: "/academy/boss", label: "Boss Battle", title: "Boss Battle", sub: "Mock round", color: "#8B6FD6" },
+  { href: "/academy/achievements", label: "Merit Sash", title: "Merit Sash", sub: "Badges", color: "#F7C948" },
+  { href: "/academy/analytics", label: "Analytics", title: "Analytics", sub: "Progress", color: "#E08A3C" },
+  { href: "/academy/leaderboard", label: "Shelf of Fame", title: "Shelf of Fame", sub: "Ranks", color: "#3E8FC4" },
+  { href: "/academy/profile", label: "Profile", title: "Profile", sub: "Account", color: "#4FB0E5" },
 ];
 
-export const TITLES: Record<ScreenKey, string> = {
-  dashboard: "Playroom",
-  quests: "Quest Map",
-  problem: "Problem View",
-  boss: "Boss Battle",
-  achievements: "Merit Sash",
-  analytics: "Analytics",
-  leaderboard: "Shelf of Fame",
-  workshop: "Profile",
-};
+/**
+ * Is this nav item the one the given path belongs to?
+ *
+ * `/academy` is the Playroom itself, so it matches only itself — every other tab also
+ * claims its children, which is what keeps "Problem" lit on `/academy/problem/two-sum`.
+ */
+export function isNavActive(pathname: string, href: string): boolean {
+  if (href === "/academy") return pathname === href;
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+export function titleForPath(pathname: string): string {
+  return NAV.find((n) => isNavActive(pathname, n.href))?.title ?? "Playroom";
+}
 
 // ---- Climbing shelves (top row first)
 export type Shelf = { label: string; lvl: number };

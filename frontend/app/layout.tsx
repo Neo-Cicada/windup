@@ -16,7 +16,12 @@ const nunito = Nunito({
 });
 
 export const metadata: Metadata = {
-  title: "Windup Academy — Ace your coding interview, one toy at a time",
+  // `template` only applies to child segments, so the landing page keeps the full pitch
+  // while every screen inside reads "Quest Map · Windup Academy" and the like.
+  title: {
+    default: "Windup Academy — Ace your coding interview, one toy at a time",
+    template: "%s · Windup Academy",
+  },
   description:
     "A secret training academy run by toys. Fix broken gadgets, climb the shelves, battle boss toys, and earn merit badges while mastering real data-structure and algorithm patterns.",
 };

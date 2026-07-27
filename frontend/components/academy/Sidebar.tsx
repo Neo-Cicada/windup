@@ -1,13 +1,17 @@
+"use client";
+
 import type { CSSProperties } from "react";
-import { NAV, FREDOKA, type ScreenKey } from "./data";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { NAV, FREDOKA, isNavActive } from "./data";
 
 type Props = {
-  active: ScreenKey;
-  onNavigate: (key: ScreenKey) => void;
   sprocketMsg: string;
 };
 
-export function Sidebar({ active, onNavigate, sprocketMsg }: Props) {
+export function Sidebar({ sprocketMsg }: Props) {
+  const pathname = usePathname();
+
   return (
     <aside
       style={{
@@ -40,8 +44,10 @@ export function Sidebar({ active, onNavigate, sprocketMsg }: Props) {
 
       {/* nav */}
       {NAV.map((n) => {
-        const isActive = n.key === active;
-        const btnStyle: CSSProperties = {
+        const isActive = isNavActive(pathname, n.href);
+        // Anchors don't inherit colour or lose their underline, and they're inline by
+        // default — the rest of this matches the button these used to be.
+        const linkStyle: CSSProperties = {
           display: "flex",
           alignItems: "center",
           gap: 11,
@@ -51,18 +57,20 @@ export function Sidebar({ active, onNavigate, sprocketMsg }: Props) {
           borderRadius: 14,
           cursor: "pointer",
           transition: ".12s",
+          color: "inherit",
+          textDecoration: "none",
           background: isActive ? "#FDECEC" : "transparent",
           border: isActive ? "3px solid #2E2620" : "3px solid transparent",
           boxShadow: isActive ? "0 4px 0 #2E2620" : "none",
         };
         return (
-          <button key={n.key} className="tap" onClick={() => onNavigate(n.key)} style={btnStyle}>
+          <Link key={n.href} href={n.href} className="tap" style={linkStyle}>
             <span style={{ width: 24, height: 24, flex: "none", borderRadius: 8, border: "3px solid #2E2620", background: n.color, opacity: isActive ? 1 : 0.9 }} />
             <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1.15 }}>
               <span style={{ fontFamily: FREDOKA, fontWeight: 600, fontSize: 14.5 }}>{n.label}</span>
               <span style={{ fontSize: 10.5, color: "#9B7B5B", fontWeight: 700 }}>{n.sub}</span>
             </span>
-          </button>
+          </Link>
         );
       })}
 
