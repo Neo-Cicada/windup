@@ -23,6 +23,7 @@ from app.judge.languages.javascript import PACK as JAVASCRIPT_PACK
 from app.judge.languages.php import PACK as PHP_PACK
 from app.judge.languages.python import PACK as PYTHON_PACK
 from app.judge.languages.ruby import PACK as RUBY_PACK
+from app.judge.languages.sql import PACK as SQL_PACK
 
 
 class UnknownLanguage(ValueError):
@@ -34,6 +35,7 @@ REGISTRY: dict[str, LanguagePack] = {
     JAVASCRIPT_PACK.slug: JAVASCRIPT_PACK,
     RUBY_PACK.slug: RUBY_PACK,
     PHP_PACK.slug: PHP_PACK,
+    SQL_PACK.slug: SQL_PACK,
 }
 
 # The language a problem falls back to, and the one the workbench opens on.

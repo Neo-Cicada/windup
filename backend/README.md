@@ -251,6 +251,13 @@ system. Nothing in the seeded catalogue needs that today.
 | JavaScript | QuickJS-NG-WASI | a plain Worker, no download | 3G fuel; `-C` forces a classic script so a preamble may redefine the adapters |
 | Ruby | CRuby-WASI | — | 6G fuel; 0.54G of it is booting the interpreter and requiring `json` |
 | PHP | php-cgi-WASI | — | the awkward one, see `languages/php.py` |
+| SQL | SQLite, inside CPython-WASI | Pyodide's bundled `sqlite3` | no artifact of its own on either side |
+
+SQL is the one that isn't a function call. It has no entrypoint and no
+signature; its `harness_preamble` is the schema, each case's `args` are the rows
+to put in the tables (`{"table": ..., "rows": [[...]]}`), and `expected` is the
+result set. The pack emits a *Python* program and hands it to the Python pack,
+so the driver, the wire format and the grader are all the ones already there.
 
 No Lua: the available builds are single-maintainer rebuilds rather than a
 first-party release, and Lua ships no JSON in its standard library, so its driver

@@ -457,6 +457,17 @@ function _build($args) {
 """
 
 
+# ---- SQL benches ------------------------------------------------------------
+# A SQL problem's preamble is its schema rather than its adapters: there is no
+# entrypoint to make callable, only a table for the query to be written against.
+RECIPES_SCHEMA = "CREATE TABLE recipes (rating INTEGER);"
+
+
+def _ratings(values: list[int]) -> list[dict]:
+    """One case's fixture — the rows that go in before the query runs."""
+    return [{"table": "recipes", "rows": [[v] for v in values]}]
+
+
 # Two keys carry the multi-language half of a problem:
 #
 # `signature` describes the *call* — what the entrypoint takes and returns, in
@@ -1011,8 +1022,57 @@ PROBLEMS: list[dict] = [
             ") AS second_highest;"
         ),
         "xp_reward": 60,
-        # The judge only runs Python. Until there's a SQL runner this problem
-        # keeps the old self-declared path — see `graded` in models/content.py.
-        "graded": False,
+        # A SQL problem has no entrypoint and no signature — the preamble is the
+        # schema the query is written against, and each case's args are the rows
+        # to put in it. See app/judge/languages/sql.py.
+        #
+        # Spelled out rather than left to the model default: this problem was
+        # seeded ungraded for a long time, and re-seeding only writes the keys a
+        # spec still has, so dropping the key would leave old rows ungraded.
+        "graded": True,
+        "harness_preamble": RECIPES_SCHEMA,
+        "tests": [
+            {
+                "visibility": "example",
+                "args": _ratings([100, 200, 300]),
+                "expected": [[200]],
+            },
+            {
+                "visibility": "example",
+                "label": "nothing to come second",
+                "args": _ratings([50]),
+                "expected": [[None]],
+            },
+            {
+                "visibility": "hidden",
+                "label": "the top rating repeats",
+                "args": _ratings([300, 300, 250, 100]),
+                "expected": [[250]],
+            },
+            {
+                "visibility": "hidden",
+                "label": "every rating the same",
+                "args": _ratings([80, 80, 80]),
+                "expected": [[None]],
+            },
+            {
+                "visibility": "hidden",
+                "label": "an empty kitchen",
+                "args": _ratings([]),
+                "expected": [[None]],
+            },
+            {
+                "visibility": "hidden",
+                "label": "out of order, with a gap",
+                "args": _ratings([12, 99, 7, 99, 40]),
+                "expected": [[40]],
+            },
+            {
+                "visibility": "hidden",
+                "label": "negatives count too",
+                "args": _ratings([-5, -1, -9]),
+                "expected": [[-5]],
+            },
+        ],
     },
 ]

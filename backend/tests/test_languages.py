@@ -108,6 +108,8 @@ def test_every_registered_pack_generates_a_stub_for_every_seeded_signature() -> 
         if signature is None:
             continue
         for pack in REGISTRY.values():
+            if pack.slug == "sql":
+                continue  # a query has no entrypoint and no parameters to name
             stub = pack.starter_code(entrypoint=spec["entrypoint"], signature=signature)
             assert spec["entrypoint"] in stub
             for param in signature.params:
@@ -228,7 +230,10 @@ async def test_the_problem_payload_lists_the_benches_it_offers(
     assert body["languages"][0]["starter_code"] == body["starter_code"]
 
     benches = {row["language"]: row for row in body["languages"]}
-    assert set(benches) == set(settings.JUDGE_LANGUAGES)
+    # Every offered language that this problem has a bench for. Not SQL: a query
+    # is not a function, so it is its own kind of problem rather than another
+    # way to write this one.
+    assert set(benches) == set(settings.JUDGE_LANGUAGES) - {"sql"}
     # Each bench opens on its own stub, in its own syntax.
     assert benches["python"]["starter_code"].startswith("def twoSum")
     assert "function twoSum(nums, target)" in benches["javascript"]["starter_code"]

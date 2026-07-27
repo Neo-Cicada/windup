@@ -17,7 +17,12 @@ def _dump(value):
     return value
 `;
 
-const channel = new WorkerChannel("/pyodide/runner.worker.js");
+/**
+ * Shared, not private: the SQL runner rides in this same worker rather than
+ * booting a second Pyodide and paying the ~11MB fetch twice.
+ */
+export const pyodideChannel = new WorkerChannel("/pyodide/runner.worker.js");
+const channel = pyodideChannel;
 
 export const pythonRunner: LocalRunner = {
   language: "python",

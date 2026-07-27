@@ -9,6 +9,7 @@
 
 import { javascriptRunner } from "./javascript";
 import { pythonRunner } from "./python";
+import { sqlRunner } from "./sql";
 import { sameValue, type LocalRunner, type RunCaseResult, type RunRequest } from "./types";
 
 export type { RunCaseResult, RunRequest } from "./types";
@@ -16,6 +17,9 @@ export type { RunCaseResult, RunRequest } from "./types";
 const RUNNERS: Record<string, LocalRunner> = {
   [pythonRunner.language]: pythonRunner,
   [javascriptRunner.language]: javascriptRunner,
+  // Rides in the Pyodide worker — sqlite3 is bundled, so this costs no download
+  // beyond the one Python already pays.
+  [sqlRunner.language]: sqlRunner,
 };
 
 export function runnerFor(language: string): LocalRunner | null {
