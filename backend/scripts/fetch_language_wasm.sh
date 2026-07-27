@@ -16,14 +16,25 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p vendor
 
-PY_TAG="python%2F3.11.4%2B20230714-11be424"
-PY_BASE="https://github.com/vmware-labs/webassembly-language-runtimes/releases/download"
-QJS_BASE="https://github.com/quickjs-ng/quickjs/releases/download/v0.15.1"
+# Everything but JavaScript comes from the same vmware-labs release series the
+# CPython build has always come from.
+WLR="https://github.com/vmware-labs/webassembly-language-runtimes/releases/download"
+BUILD="20230714-11be424"
+QJS="https://github.com/quickjs-ng/quickjs/releases/download/v0.15.1"
 
 # language|destination|url
+#
+# No Lua: the builds on offer are single-maintainer rebuilds rather than a
+# first-party release, and Lua has no JSON in its standard library, so its
+# driver would have to carry a hand-written serialiser — where a bug produces a
+# wrong verdict rather than an error.
 LANGUAGES=(
-  "python|vendor/python.wasm|${PY_BASE}/${PY_TAG}/python-3.11.4.wasm"
-  "javascript|vendor/quickjs.wasm|${QJS_BASE}/qjs-wasi.wasm"
+  "python|vendor/python.wasm|${WLR}/python%2F3.11.4%2B${BUILD}/python-3.11.4.wasm"
+  "javascript|vendor/quickjs.wasm|${QJS}/qjs-wasi.wasm"
+  "ruby|vendor/ruby.wasm|${WLR}/ruby%2F3.2.2%2B${BUILD}/ruby-3.2.2.wasm"
+  # php-cgi rather than php: it is the only build in the release with a WASI
+  # target. See app/judge/languages/php.py for what that costs.
+  "php|vendor/php.wasm|${WLR}/php%2F8.2.6%2B${BUILD}/php-cgi-8.2.6-slim.wasm"
 )
 
 fetch() {

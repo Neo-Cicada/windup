@@ -22,10 +22,16 @@ from typing import Protocol, runtime_checkable
 
 from app.judge.signature import Signature
 
-# Replaced with the assembled program when the runner builds its argv. Every
-# interpreter here takes the program on the command line (`-c`, `-e`, `-r`),
-# which is what lets the guest keep having no filesystem at all.
+# Replaced with the assembled program when the runner builds its argv. Most
+# interpreters here take the program on the command line (`-c`, `-e`), which is
+# what lets the guest keep having no filesystem at all.
 PROGRAM_SLOT = "__WINDUP_PROGRAM__"
+
+# Replaced with the case payload, for a pack that sets `program_on_stdin` and so
+# has no stdin left to read it from. Same payload either way — arguments only,
+# never expected values — so which door it comes through changes nothing about
+# what the guest can learn.
+CASES_SLOT = "__WINDUP_CASES__"
 
 
 @dataclass(frozen=True)
@@ -41,6 +47,10 @@ class RunnerSpec:
     # None means "use settings.JUDGE_FUEL". A pack whose interpreter starts up
     # far cheaper or dearer than CPython's 0.24G sets its own.
     fuel: int | None = None
+    # For an interpreter with no way to take a program on argv (php-cgi), the
+    # program goes on stdin instead and the cases are substituted into it at
+    # CASES_SLOT. Nothing else changes.
+    program_on_stdin: bool = False
 
 
 @dataclass(frozen=True)

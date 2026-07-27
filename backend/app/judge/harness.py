@@ -56,6 +56,19 @@ class RunResult:
     fatal: str | None = None
 
 
+def guest_complaints(stdout: str) -> str:
+    """Whatever the guest said that wasn't a result.
+
+    Not every interpreter writes its fatals to stderr — php-cgi puts them on
+    stdout, where they would otherwise be discarded as noise and a toy whose
+    code will not parse would be told only that the sandbox trapped. Used as a
+    fallback when stderr is empty, so the explanation comes from the language
+    rather than from wasmtime.
+    """
+    lines = [line for line in stdout.splitlines() if line.strip() and not line.startswith("{")]
+    return "\n".join(lines)
+
+
 def parse_results(stdout: str) -> dict[int, CaseOutcome]:
     """Read the driver's JSONL back.
 
@@ -99,5 +112,6 @@ __all__ = [
     "RunResult",
     "build_program",
     "build_stdin",
+    "guest_complaints",
     "parse_results",
 ]

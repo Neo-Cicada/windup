@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.judge.bench import bench_for, benches_for, offered_languages
 from app.judge.languages import (
     DEFAULT_LANGUAGE,
@@ -223,12 +224,19 @@ async def test_the_problem_payload_lists_the_benches_it_offers(
     body = resp.json()
     # Default first — it is the one the workbench opens on.
     assert body["language"] == "python"
-    assert [row["language"] for row in body["languages"]] == ["python", "javascript"]
+    assert body["languages"][0]["language"] == "python"
     assert body["languages"][0]["starter_code"] == body["starter_code"]
-    assert all(row["runs_in_browser"] for row in body["languages"])
+
+    benches = {row["language"]: row for row in body["languages"]}
+    assert set(benches) == set(settings.JUDGE_LANGUAGES)
     # Each bench opens on its own stub, in its own syntax.
-    assert body["languages"][0]["starter_code"].startswith("def twoSum")
-    assert "function twoSum(nums, target)" in body["languages"][1]["starter_code"]
+    assert benches["python"]["starter_code"].startswith("def twoSum")
+    assert "function twoSum(nums, target)" in benches["javascript"]["starter_code"]
+    assert "def twoSum(nums, target)" in benches["ruby"]["starter_code"]
+    assert "function twoSum($nums, $target)" in benches["php"]["starter_code"]
+    # Only the ones with a browser engine offer the Run button.
+    assert benches["javascript"]["runs_in_browser"] is True
+    assert benches["ruby"]["runs_in_browser"] is False
 
 
 async def test_a_structural_problem_hands_each_bench_its_own_preamble(
@@ -247,7 +255,7 @@ async def test_submitting_in_a_language_the_problem_does_not_offer_is_refused(
     resp = await client.post(
         "/api/v1/problems/two-sum/submit",
         headers=auth,
-        json={"code": "puts 'hello'", "language": "ruby"},
+        json={"code": "print('hello')", "language": "haskell"},
     )
     assert resp.status_code == 400
     assert "Sprocket" in resp.json()["detail"]
@@ -281,10 +289,10 @@ async def test_the_languages_endpoint_reports_what_this_deployment_offers(
 async def test_the_same_problem_can_be_solved_in_either_language(judge) -> None:
     """One set of hidden cases, two languages, the same verdict and the same payout."""
     from app.db.seed_data import PROBLEMS
-    from tests.test_javascript import JS_SOLUTIONS
+    from tests.solutions import JAVASCRIPT_SOLUTIONS
 
     reward = next(p for p in PROBLEMS if p["slug"] == "two-sum")["xp_reward"]
-    result = await judge.solve("two-sum", JS_SOLUTIONS["two-sum"], language="javascript")
+    result = await judge.solve("two-sum", JAVASCRIPT_SOLUTIONS["two-sum"], language="javascript")
     assert result["status"] == "passed", result
     assert result["language"] == "javascript"
     # The same unaided payout a Python solve of this problem earns.

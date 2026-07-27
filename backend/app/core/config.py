@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     # lists them. A pack can be implemented and left out of here — that is what
     # a deployment that hasn't fetched an artifact yet looks like.
     JUDGE_LANGUAGES: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: ["python", "javascript"]
+        default_factory=lambda: ["python", "javascript", "ruby", "php"]
     )
     # Fuel is an instruction counter, not a clock. Measured on the seeded
     # catalogue: interpreter startup burns 0.24G, the heaviest problem (islands

@@ -28,8 +28,8 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from app.core.config import settings
-from app.judge.harness import RunResult, build_stdin, parse_results
-from app.judge.languages import PROGRAM_SLOT, ProgramSpec, enabled_packs
+from app.judge.harness import RunResult, build_stdin, guest_complaints, parse_results
+from app.judge.languages import CASES_SLOT, PROGRAM_SLOT, ProgramSpec, enabled_packs
 
 # Everything relative resolves against the backend package root, so a worker
 # started from anywhere finds the same artifacts.
@@ -109,7 +109,13 @@ class WasmRunner:
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
             stdin_f, stdout_f, stderr_f = tmp / "in", tmp / "out", tmp / "err"
-            stdin_f.write_text(build_stdin(cases))
+            payload = build_stdin(cases)
+            if spec.runner.program_on_stdin:
+                # No argv door for this interpreter, so the program goes down
+                # stdin and takes the cases with it.
+                stdin_f.write_text(spec.source.replace(CASES_SLOT, payload))
+            else:
+                stdin_f.write_text(payload)
             stdout_f.touch()
             stderr_f.touch()
 
@@ -142,13 +148,26 @@ class WasmRunner:
                     timed_out = True
                 else:
                     fatal = str(trap).splitlines()[0]
+            except wasmtime.WasmtimeError as err:
+                # Not every way a guest can die is a Trap. php-cgi exits with a
+                # status wasmtime refuses to interpret, and an interpreter we
+                # cannot classify must still come back as a failed submission
+                # rather than take the worker down with it.
+                fatal = str(err).splitlines()[0]
             runtime_ms = int((time.monotonic() - started) * 1000)
 
+            stdout_text = stdout_f.read_text(errors="replace")
+            stderr_text = stderr_f.read_text(errors="replace")
+            if not stderr_text.strip():
+                # An interpreter that puts its fatals on stdout still gets to
+                # explain itself.
+                stderr_text = guest_complaints(stdout_text)
+
             return RunResult(
-                outcomes=parse_results(stdout_f.read_text(errors="replace")),
+                outcomes=parse_results(stdout_text),
                 timed_out=timed_out,
                 runtime_ms=runtime_ms,
-                stderr=stderr_f.read_text(errors="replace")[-4000:],
+                stderr=stderr_text[-4000:],
                 fatal=fatal,
             )
 

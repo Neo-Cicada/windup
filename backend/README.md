@@ -245,6 +245,18 @@ system. Nothing in the seeded catalogue needs that today.
 
 ### More than one language
 
+| language | interpreter | browser Run | notes |
+| --- | --- | --- | --- |
+| Python | CPython-WASI | Pyodide | the default; 8G fuel |
+| JavaScript | QuickJS-NG-WASI | a plain Worker, no download | 3G fuel; `-C` forces a classic script so a preamble may redefine the adapters |
+| Ruby | CRuby-WASI | — | 6G fuel; 0.54G of it is booting the interpreter and requiring `json` |
+| PHP | php-cgi-WASI | — | the awkward one, see `languages/php.py` |
+
+No Lua: the available builds are single-maintainer rebuilds rather than a
+first-party release, and Lua ships no JSON in its standard library, so its driver
+would need a hand-written serialiser — where a bug is a wrong verdict rather than
+an error.
+
 A toy picks the language per submission, and adding one changes nothing about
 grading:
 

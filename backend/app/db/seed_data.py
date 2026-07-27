@@ -290,6 +290,173 @@ function _build(args) {
 """
 
 
+# ---- Ruby benches -----------------------------------------------------------
+RB_LIST_NODE = """
+class ListNode
+  attr_accessor :val, :next
+  def initialize(val = 0, nxt = nil)
+    @val = val
+    @next = nxt
+  end
+end
+"""
+
+RB_REVERSE_LIST_PREAMBLE = (
+    RB_LIST_NODE
+    + """
+def _build(args)
+  head = nil
+  args[0].reverse_each { |v| head = ListNode.new(v, head) }
+  [head]
+end
+
+def _dump(node)
+  out = []
+  while node
+    out << node.val
+    node = node.next
+  end
+  out
+end
+"""
+)
+
+RB_CYCLE_PREAMBLE = (
+    RB_LIST_NODE
+    + """
+def _build(args)
+  vals, pos = args
+  return [nil] if vals.empty?
+  nodes = vals.map { |v| ListNode.new(v) }
+  nodes.each_cons(2) { |a, b| a.next = b }
+  nodes.last.next = nodes[pos] if pos >= 0
+  [nodes.first]
+end
+"""
+)
+
+RB_TREE_PREAMBLE = """
+class TreeNode
+  attr_accessor :val, :left, :right
+  def initialize(val = 0, left = nil, right = nil)
+    @val = val
+    @left = left
+    @right = right
+  end
+end
+
+def _build(args)
+  # Level-order list with nulls, the shape LeetCode prints trees in.
+  vals = args[0]
+  return [nil] if vals.empty? || vals[0].nil?
+  root = TreeNode.new(vals[0])
+  queue = [root]
+  i = 1
+  while !queue.empty? && i < vals.length
+    node = queue.shift
+    if i < vals.length
+      v = vals[i]
+      i += 1
+      if v
+        node.left = TreeNode.new(v)
+        queue << node.left
+      end
+    end
+    if i < vals.length
+      v = vals[i]
+      i += 1
+      if v
+        node.right = TreeNode.new(v)
+        queue << node.right
+      end
+    end
+  end
+  [root]
+end
+"""
+
+
+# ---- PHP benches ------------------------------------------------------------
+PHP_LIST_NODE = """
+class ListNode {
+  public $val;
+  public $next;
+  function __construct($val = 0, $next = null) {
+    $this->val = $val;
+    $this->next = $next;
+  }
+}
+"""
+
+PHP_REVERSE_LIST_PREAMBLE = (
+    PHP_LIST_NODE
+    + """
+function _build($args) {
+  $head = null;
+  foreach (array_reverse($args[0]) as $v) $head = new ListNode($v, $head);
+  return [$head];
+}
+
+function _dump($node) {
+  $out = [];
+  while ($node !== null) {
+    $out[] = $node->val;
+    $node = $node->next;
+  }
+  return $out;
+}
+"""
+)
+
+PHP_CYCLE_PREAMBLE = (
+    PHP_LIST_NODE
+    + """
+function _build($args) {
+  [$vals, $pos] = $args;
+  if (count($vals) === 0) return [null];
+  $nodes = array_map(fn($v) => new ListNode($v), $vals);
+  for ($i = 0; $i < count($nodes) - 1; $i++) $nodes[$i]->next = $nodes[$i + 1];
+  if ($pos >= 0) $nodes[count($nodes) - 1]->next = $nodes[$pos];
+  return [$nodes[0]];
+}
+"""
+)
+
+PHP_TREE_PREAMBLE = """
+class TreeNode {
+  public $val;
+  public $left;
+  public $right;
+  function __construct($val = 0, $left = null, $right = null) {
+    $this->val = $val;
+    $this->left = $left;
+    $this->right = $right;
+  }
+}
+
+function _build($args) {
+  // Level-order list with nulls, the shape LeetCode prints trees in.
+  $vals = $args[0];
+  if (count($vals) === 0 || $vals[0] === null) return [null];
+  $root = new TreeNode($vals[0]);
+  $queue = [$root];
+  $i = 1;
+  while (count($queue) > 0 && $i < count($vals)) {
+    $node = array_shift($queue);
+    if ($i < count($vals)) {
+      $left = $vals[$i++];
+      if ($left !== null) { $node->left = new TreeNode($left); $queue[] = $node->left; }
+    }
+    if ($i < count($vals)) {
+      $right = $vals[$i++];
+      if ($right !== null) { $node->right = new TreeNode($right); $queue[] = $node->right; }
+    }
+  }
+  return [$root];
+}
+"""
+
+
 # Two keys carry the multi-language half of a problem:
 #
 # `signature` describes the *call* — what the entrypoint takes and returns, in
@@ -343,7 +510,7 @@ PROBLEMS: list[dict] = [
             "    return []"
         ),
         "xp_reward": 50,
-        "languages": {"javascript": {}},
+        "languages": {"javascript": {}, "ruby": {}, "php": {}},
         "signature": {
             "params": [{"name": "nums", "type": "list<int>"}, {"name": "target", "type": "int"}],
             "returns": "list<int>",
@@ -394,7 +561,7 @@ PROBLEMS: list[dict] = [
             "    return len(s) == len(t) and Counter(s) == Counter(t)"
         ),
         "xp_reward": 50,
-        "languages": {"javascript": {}},
+        "languages": {"javascript": {}, "ruby": {}, "php": {}},
         "signature": {
             "params": [{"name": "s", "type": "string"}, {"name": "t", "type": "string"}],
             "returns": "bool",
@@ -461,6 +628,8 @@ PROBLEMS: list[dict] = [
         "xp_reward": 60,
         "languages": {
             "javascript": {"harness_preamble": JS_REVERSE_LIST_PREAMBLE},
+            "ruby": {"harness_preamble": RB_REVERSE_LIST_PREAMBLE},
+            "php": {"harness_preamble": PHP_REVERSE_LIST_PREAMBLE},
         },
         "signature": {
             "params": [{"name": "head", "type": "listnode"}],
@@ -518,6 +687,8 @@ PROBLEMS: list[dict] = [
         "xp_reward": 60,
         "languages": {
             "javascript": {"harness_preamble": JS_CYCLE_PREAMBLE},
+            "ruby": {"harness_preamble": RB_CYCLE_PREAMBLE},
+            "php": {"harness_preamble": PHP_CYCLE_PREAMBLE},
         },
         "signature": {
             "params": [{"name": "head", "type": "listnode"}],
@@ -586,7 +757,7 @@ PROBLEMS: list[dict] = [
             "    return count"
         ),
         "xp_reward": 60,
-        "languages": {"javascript": {}},
+        "languages": {"javascript": {}, "ruby": {}, "php": {}},
         "signature": {
             "params": [{"name": "grid", "type": "matrix<string>"}],
             "returns": "int",
@@ -636,6 +807,8 @@ PROBLEMS: list[dict] = [
         "xp_reward": 50,
         "languages": {
             "javascript": {"harness_preamble": JS_TREE_PREAMBLE},
+            "ruby": {"harness_preamble": RB_TREE_PREAMBLE},
+            "php": {"harness_preamble": PHP_TREE_PREAMBLE},
         },
         "signature": {
             "params": [{"name": "root", "type": "treenode"}],
@@ -689,7 +862,7 @@ PROBLEMS: list[dict] = [
             "    return not stack"
         ),
         "xp_reward": 50,
-        "languages": {"javascript": {}},
+        "languages": {"javascript": {}, "ruby": {}, "php": {}},
         "signature": {
             "params": [{"name": "s", "type": "string"}],
             "returns": "bool",
@@ -736,7 +909,7 @@ PROBLEMS: list[dict] = [
             "    return b"
         ),
         "xp_reward": 50,
-        "languages": {"javascript": {}},
+        "languages": {"javascript": {}, "ruby": {}, "php": {}},
         "signature": {
             "params": [{"name": "n", "type": "int"}],
             "returns": "int",
@@ -787,7 +960,7 @@ PROBLEMS: list[dict] = [
             "    return -1 if dp[amount] == float('inf') else dp[amount]"
         ),
         "xp_reward": 80,
-        "languages": {"javascript": {}},
+        "languages": {"javascript": {}, "ruby": {}, "php": {}},
         "signature": {
             "params": [{"name": "coins", "type": "list<int>"}, {"name": "amount", "type": "int"}],
             "returns": "int",

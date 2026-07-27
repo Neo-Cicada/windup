@@ -12,9 +12,17 @@ registered and not enabled (its artifact isn't fetched yet), which is why
 from __future__ import annotations
 
 from app.core.config import settings
-from app.judge.languages.base import PROGRAM_SLOT, LanguagePack, ProgramSpec, RunnerSpec
+from app.judge.languages.base import (
+    CASES_SLOT,
+    PROGRAM_SLOT,
+    LanguagePack,
+    ProgramSpec,
+    RunnerSpec,
+)
 from app.judge.languages.javascript import PACK as JAVASCRIPT_PACK
+from app.judge.languages.php import PACK as PHP_PACK
 from app.judge.languages.python import PACK as PYTHON_PACK
+from app.judge.languages.ruby import PACK as RUBY_PACK
 
 
 class UnknownLanguage(ValueError):
@@ -24,6 +32,8 @@ class UnknownLanguage(ValueError):
 REGISTRY: dict[str, LanguagePack] = {
     PYTHON_PACK.slug: PYTHON_PACK,
     JAVASCRIPT_PACK.slug: JAVASCRIPT_PACK,
+    RUBY_PACK.slug: RUBY_PACK,
+    PHP_PACK.slug: PHP_PACK,
 }
 
 # The language a problem falls back to, and the one the workbench opens on.
@@ -50,6 +60,7 @@ def enabled_packs() -> list[LanguagePack]:
 
 
 __all__ = [
+    "CASES_SLOT",
     "DEFAULT_LANGUAGE",
     "PROGRAM_SLOT",
     "REGISTRY",
