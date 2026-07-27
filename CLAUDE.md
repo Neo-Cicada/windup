@@ -31,7 +31,8 @@ The problem screen has two buttons and they are not the same thing. **Run** exec
 ### Backend (`cd backend`)
 
 ```bash
-uv sync                                  # create .venv, install deps
+uv sync                                  # create .venv, install deps (Python >= 3.12)
+cp .env.example .env                     # DATABASE_URL / SECRET_KEY / CORS_ORIGINS
 ./scripts/fetch_python_wasm.sh           # CPython-WASI build for the judge (20MB, gitignored)
 docker compose up -d db                  # or: createdb windup
 uv run alembic upgrade head
@@ -91,11 +92,13 @@ These are the load-bearing rules; several endpoints exist specifically to enforc
 
 `XpEvent` is an append-only ledger — the weekly chart and the streak heatmap read from it rather than from counters.
 
+Forgetting to start the worker is the likeliest way to break the academy, so it is diagnosed rather than left to look like a slow judge: a submission unclaimed for `JUDGE_STALL_AFTER_SECONDS` comes back from `GET /submissions/{id}` with `stalled: true` and an explanatory `sprocket_message`, and the client surfaces that instead of waiting out its own deadline.
+
 See `backend/README.md` for the full endpoint table and data model.
 
 ## Frontend architecture
 
-Every screen is a real URL. `/` is the pitch, `/login` and `/signup` the forms; the dashboard is nine routes under `/academy`:
+Every screen is a real URL. `/` is the pitch, `/login` and `/signup` the forms (both render `AuthRoute` with a different `mode`); the dashboard is nine routes under `/academy`:
 
 | route | screen |
 | --- | --- |
@@ -108,6 +111,8 @@ Every screen is a real URL. `/` is the pitch, `/login` and `/signup` the forms; 
 
 Each `page.tsx` is a server shell that exports `metadata` and renders one client container from `components/academy/routes/*`; the containers own the screen's own state and fetching, and `components/academy/screens/*` stay presentational — props and callbacks only. The exception is `screens/Profile.tsx`, which owns its own form fields and returns them to `ProfileRoute` on save.
 
+The three public routes follow the same container/presentational split one level up — `LandingRoute`/`Landing`, `AuthRoute`/`Auth` — and both containers bounce an already-authed visitor to `/academy`. They draw from `components/data.ts` and `components/publicBg.ts`, which are **not** `components/academy/data.ts`; the two `data.ts` files are unrelated and both export `FREDOKA`.
+
 `app/academy/layout.tsx` renders `AcademyShell` — `RequireAuth`, then `AcademyProvider`, then the sidebar, topbar and confetti. **The layout doesn't unmount as you move between screens, and that's load-bearing.** `AcademyProvider` (`useAcademy()`) owns everything shared: the `/dashboard` and `/analytics/streak` resources behind the topbar, the wind-up mutation, Sprocket's line, confetti, and the boss fight (`useBossFight`). So a leaf calling `dashboard.reload()` after a solve still moves the topbar, and a judge poll that settles after you've wandered off still pays out and throws its confetti.
 
 The boss fight in particular *must* live there: a submission only counts towards a round if it carries the running session's id, and that id is read from the problem route. `/boss/current` is fetched on provider mount rather than when the boss screen opens, because a bookmarked problem link is a normal way in.
@@ -119,6 +124,7 @@ The boss fight in particular *must* live there: a submission only counts towards
 - `api.ts` — the only place that talks to the API. Holds the tokens, attaches the bearer header, and on a 401 for an authenticated request does a **single-flight** refresh and retries once; if that fails it clears the session and notifies `onSessionExpired` subscribers. A 401 with no token attached (a bad login) falls through so the backend's own message reaches the form. Tokens live in `localStorage` because the API is stateless bearer-only — this is the file to change if it ever grows an httpOnly-cookie flow.
 - `auth.tsx` — `AuthProvider` (mounted in `app/layout.tsx`) with `status: "loading" | "authed" | "anon"`. A stored token is only a claim until `/me` confirms it.
 - `useResource.ts` — `GET` a path into state. `loading` is *derived* (a snapshot whose path doesn't match the requested one is a request in flight), not stored. Routing made the `enabled` flag mostly redundant — a route container only mounts on its own route — but it's still there for the zone problems, which depend on `?zone=`.
+- `types.ts` — hand-mirrors `backend/app/schemas`, field name for field name, so a schema change needs a matching edit here. It also owns `TERMINAL_STATUSES`, which is what `components/academy/pollForVerdict.ts` polls against (backing off to a 2s ceiling, giving up at 45s, and short-circuiting on `stalled`).
 - `components/RequireAuth.tsx` — mounted in `app/academy/layout.tsx`, so one gate covers all nine routes. Children never render until `/me` succeeds, so there's no flash of the dashboard.
 
 The route gate is client-side; the real lock is that every endpoint except signup/login/refresh requires the bearer token, so the page shell is worthless without a session. Middleware can't gate it — the token is in `localStorage`, not a cookie.
