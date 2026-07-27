@@ -95,14 +95,31 @@ See `backend/README.md` for the full endpoint table and data model.
 
 ## Frontend architecture
 
-`app/page.tsx` is the landing + auth flow; `app/academy/page.tsx` is the entire dashboard — it owns the data fetching and switches between `components/academy/screens/*` via a `ScreenKey`. Screens stay presentational: they take props and callbacks. The one exception is `screens/Profile.tsx`, which owns its own form fields and returns them to the page on save.
+Every screen is a real URL. `/` is the pitch, `/login` and `/signup` the forms; the dashboard is nine routes under `/academy`:
+
+| route | screen |
+| --- | --- |
+| `/academy` | Playroom |
+| `/academy/quests` | Quest Map (`?zone=<slug>` opens a corner) |
+| `/academy/problem` | redirects to today's first quest |
+| `/academy/problem/[slug]` | the workbench |
+| `/academy/boss` | Boss Battle |
+| `/academy/achievements` · `/academy/analytics` · `/academy/leaderboard` · `/academy/profile` | the rest |
+
+Each `page.tsx` is a server shell that exports `metadata` and renders one client container from `components/academy/routes/*`; the containers own the screen's own state and fetching, and `components/academy/screens/*` stay presentational — props and callbacks only. The exception is `screens/Profile.tsx`, which owns its own form fields and returns them to `ProfileRoute` on save.
+
+`app/academy/layout.tsx` renders `AcademyShell` — `RequireAuth`, then `AcademyProvider`, then the sidebar, topbar and confetti. **The layout doesn't unmount as you move between screens, and that's load-bearing.** `AcademyProvider` (`useAcademy()`) owns everything shared: the `/dashboard` and `/analytics/streak` resources behind the topbar, the wind-up mutation, Sprocket's line, confetti, and the boss fight (`useBossFight`). So a leaf calling `dashboard.reload()` after a solve still moves the topbar, and a judge poll that settles after you've wandered off still pays out and throws its confetti.
+
+The boss fight in particular *must* live there: a submission only counts towards a round if it carries the running session's id, and that id is read from the problem route. `/boss/current` is fetched on provider mount rather than when the boss screen opens, because a bookmarked problem link is a normal way in.
+
+`NAV` in `components/academy/data.ts` is the single source of truth for the sidebar — `href`, `label` (the button) and `title` (the topbar). `isNavActive` is what keeps "Problem" lit on `/academy/problem/two-sum`; `titleForPath` feeds the topbar. Unsaved workbench code is kept per slug in `sessionStorage` (`components/academy/drafts.ts`), since the editor now unmounts when you leave its route.
 
 ### Data layer (`lib/`)
 
 - `api.ts` — the only place that talks to the API. Holds the tokens, attaches the bearer header, and on a 401 for an authenticated request does a **single-flight** refresh and retries once; if that fails it clears the session and notifies `onSessionExpired` subscribers. A 401 with no token attached (a bad login) falls through so the backend's own message reaches the form. Tokens live in `localStorage` because the API is stateless bearer-only — this is the file to change if it ever grows an httpOnly-cookie flow.
 - `auth.tsx` — `AuthProvider` (mounted in `app/layout.tsx`) with `status: "loading" | "authed" | "anon"`. A stored token is only a claim until `/me` confirms it.
-- `useResource.ts` — `GET` a path into state, with `enabled` so a screen only fetches when it's open. `loading` is *derived* (a snapshot whose path doesn't match the requested one is a request in flight), not stored.
-- `components/RequireAuth.tsx` — wraps the academy. Children never render until `/me` succeeds, so there's no flash of the dashboard.
+- `useResource.ts` — `GET` a path into state. `loading` is *derived* (a snapshot whose path doesn't match the requested one is a request in flight), not stored. Routing made the `enabled` flag mostly redundant — a route container only mounts on its own route — but it's still there for the zone problems, which depend on `?zone=`.
+- `components/RequireAuth.tsx` — mounted in `app/academy/layout.tsx`, so one gate covers all nine routes. Children never render until `/me` succeeds, so there's no flash of the dashboard.
 
 The route gate is client-side; the real lock is that every endpoint except signup/login/refresh requires the bearer token, so the page shell is worthless without a session. Middleware can't gate it — the token is in `localStorage`, not a cookie.
 
@@ -116,7 +133,7 @@ The React Compiler is on, and `eslint-config-next` enforces its rules as **error
 
 ### Styling
 
-Styling is **inline style objects**, not CSS modules or a framework. `app/globals.css` carries only resets, base typography, and the `@keyframes` (`cfall`, `spin`, `wob`, `floaty`, `pop`, `tick`) that components reference by name. Shared tokens (`FREDOKA`, `DARK`, `MONO`, `NAV`, `TITLES`) and pure presentation helpers (`buildShelves`, `pegColor`, `streakColors`, `buildPodium`) come from `components/academy/data.ts`; fonts are wired as CSS variables in `app/layout.tsx` via `next/font`.
+Styling is **inline style objects**, not CSS modules or a framework. `app/globals.css` carries only resets, base typography, and the `@keyframes` (`cfall`, `spin`, `wob`, `floaty`, `pop`, `tick`) that components reference by name. Shared tokens (`FREDOKA`, `DARK`, `MONO`, `NAV`) and pure presentation helpers (`buildShelves`, `pegColor`, `streakColors`, `buildPodium`) come from `components/academy/data.ts`; fonts are wired as CSS variables in `app/layout.tsx` via `next/font`.
 
 **Next.js 16 caveat** (`frontend/AGENTS.md`, aliased by `frontend/CLAUDE.md`): this version has breaking changes versus older Next.js — APIs, conventions, and file structure may differ from what you expect. Read the relevant guide in `frontend/node_modules/next/dist/docs/` before writing App Router code, and heed deprecation notices.
 
