@@ -76,10 +76,32 @@ class Param:
 
 @dataclass(frozen=True)
 class Signature:
-    """What the entrypoint takes and gives back."""
+    """What the entrypoint takes and gives back.
+
+    `params` describes the **call**. For most problems the JSON arguments in the
+    test cases match it one for one, and `raw_params` is None. Where they don't —
+    linked-list-cycle's cases carry a list of values and a loop-back index that
+    `_build` folds into a single `head` — the problem also declares `args` and
+    `raw_params` holds that instead.
+
+    Only the compiled languages actually need the distinction, because they are
+    the only ones that render the arguments as typed literals rather than handing
+    the guest a JSON array to pull apart.
+    """
 
     params: tuple[Param, ...]
     returns: Type
+    raw_params: tuple[Param, ...] | None = None
+
+    @property
+    def arg_params(self) -> tuple[Param, ...]:
+        """What one case's `args` actually holds."""
+        return self.raw_params if self.raw_params is not None else self.params
+
+    @property
+    def bridged(self) -> bool:
+        """True when `_build` has to turn the raw arguments into the call's."""
+        return self.raw_params is not None
 
     @classmethod
     def parse(cls, raw: Any) -> Signature:
@@ -93,9 +115,16 @@ class Signature:
         if not isinstance(raw, dict):
             raise ValueError("a signature must be an object")
 
+        params = cls._params(raw.get("params", []))
+        raw_args = raw.get("args")
+        returns = parse_type(str(raw.get("returns", "void")))
+        return cls(params, returns, cls._params(raw_args) if raw_args is not None else None)
+
+    @staticmethod
+    def _params(entries: Any) -> tuple[Param, ...]:
         params: list[Param] = []
         seen: set[str] = set()
-        for entry in raw.get("params", []):
+        for entry in entries:
             if not isinstance(entry, dict):
                 raise ValueError("each param must be an object with a name and a type")
             name = str(entry.get("name", "")).strip()
@@ -105,9 +134,7 @@ class Signature:
                 raise ValueError(f"param {name!r} appears twice")
             seen.add(name)
             params.append(Param(name, parse_type(str(entry.get("type", "")))))
-
-        returns = parse_type(str(raw.get("returns", "void")))
-        return cls(tuple(params), returns)
+        return tuple(params)
 
 
 def parse_signature(raw: Any) -> Signature | None:

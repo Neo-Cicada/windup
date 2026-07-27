@@ -189,9 +189,14 @@ processes are involved and neither of them is the one serving requests:
 
 ```bash
 ./scripts/fetch_language_wasm.sh          # once: every language's WASI build (gitignored)
+./scripts/fetch_toolchains.sh             # once: the C++/Rust/Go compilers, if you want them
 uv run python -m app.judge.worker         # the judge; run as many as you need
 uv run python -m app.judge.worker --once  # drain the queue and exit
 ```
+
+Only worker hosts need any of that — the API compiles and runs nothing. A
+language whose artifact or toolchain is missing should be left out of
+`JUDGE_LANGUAGES`; a worker refuses to start rather than discover it later.
 
 `POST /submit` validates and inserts a `pending` submission, then returns. Workers
 claim rows with `FOR UPDATE SKIP LOCKED` — which is why this needs no broker beyond
@@ -252,6 +257,9 @@ system. Nothing in the seeded catalogue needs that today.
 | Ruby | CRuby-WASI | — | 6G fuel; 0.54G of it is booting the interpreter and requiring `json` |
 | PHP | php-cgi-WASI | — | the awkward one, see `languages/php.py` |
 | SQL | SQLite, inside CPython-WASI | Pyodide's bundled `sqlite3` | no artifact of its own on either side |
+| C++ | wasi-sdk clang → wasm | — | ~1s to build |
+| Rust | `rustc --target wasm32-wasip1` | — | ~1s; plain rustc, no cargo and no crates |
+| Go | TinyGo → wasm | — | ~3s, the slowest of the three |
 
 SQL is the one that isn't a function call. It has no entrypoint and no
 signature; its `harness_preamble` is the schema, each case's `args` are the rows
@@ -282,6 +290,33 @@ grading:
   generates its starter stub from it. A bench row exists to override that,
   usually with a structural preamble, because a preamble is source code and is
   never inherited across languages.
+
+#### The compiled three
+
+C++, Rust and Go have no interpreter to hand a program to, so `compile.py`
+builds them on the host first and the sandbox instantiates *that* module. The
+compiler is the one place untrusted input touches the host, so it gets rlimits,
+a scratch directory, no network and a clock of its own; a build failure is a
+verdict carrying the compiler's own diagnostics, not a crash.
+
+They also skip JSON entirely. Parsing a payload in a statically typed language
+needs a variant type and a parser — hundreds of lines where a bug is a *wrong
+verdict* — so instead the host renders each case's arguments as **typed
+literals** straight into the source (the whole catalogue carries 346 bytes of
+arguments at most). The compiler then type-checks every call, and the only
+serialising left is the return value, whose type the signature already gave.
+
+Two things follow, and both are deliberate:
+
+- **The toy's own prints are not handed back.** WASI gives the guest no pipe and
+  no filesystem to redirect stdout into, so a `printf` lands on the result
+  stream and `parse_results` discards it as noise. Nothing grades wrongly; there
+  is simply no debugging output on the way back.
+- **They do not offer the three structural problems.** Rendering literals needs
+  to know what the raw JSON holds, which `signature.args` can express — but each
+  would still need its node type and `_build` written three more times, and
+  linked-list-cycle cannot be expressed with Rust's `Box` at all: a cyclic list
+  needs `Rc<RefCell<..>>`, a different type for the toy to write against.
 
 ## The frontend
 

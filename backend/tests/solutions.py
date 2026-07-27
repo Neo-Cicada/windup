@@ -318,8 +318,306 @@ function coinChange($coins, $amount) {
 
 # Keyed by language slug, so a test can ask for "every pack we have solutions
 # for" without knowing which those are.
+
+
+
+# ---- the compiled languages -------------------------------------------------
+# Only the six problems whose JSON arguments *are* the call arguments. The three
+# structural ones (two linked lists and a tree) are not offered in a compiled
+# language: each would need its node type and `_build` written three more times,
+# and linked-list-cycle in particular cannot be expressed with Rust's `Box` at
+# all — a cyclic list needs `Rc<RefCell<..>>`, which is a different type for the
+# toy to write against. See app/judge/languages/compiled.py.
+CPP_SOLUTIONS = {
+    "two-sum": """
+std::vector<long long> twoSum(std::vector<long long> nums, long long target) {
+  for (std::size_t i = 0; i < nums.size(); i++)
+    for (std::size_t j = i + 1; j < nums.size(); j++)
+      if (nums[i] + nums[j] == target) return {(long long)i, (long long)j};
+  return {};
+}
+""",
+    "valid-anagram": """
+bool isAnagram(std::string s, std::string t) {
+  if (s.size() != t.size()) return false;
+  int counts[256] = {0};
+  for (unsigned char c : s) counts[c]++;
+  for (unsigned char c : t) if (--counts[c] < 0) return false;
+  return true;
+}
+""",
+    "number-of-islands": """
+int numIslands(std::vector<std::vector<std::string>> grid) {
+  if (grid.empty()) return 0;
+  long long rows = grid.size(), cols = grid[0].size(), count = 0;
+  std::vector<std::pair<long long, long long>> stack;
+  for (long long r = 0; r < rows; r++) {
+    for (long long c = 0; c < cols; c++) {
+      if (grid[r][c] != "1") continue;
+      count++;
+      stack.push_back({r, c});
+      while (!stack.empty()) {
+        auto [y, x] = stack.back();
+        stack.pop_back();
+        if (y < 0 || x < 0 || y >= rows || x >= cols || grid[y][x] != "1") continue;
+        grid[y][x] = "0";
+        stack.push_back({y + 1, x});
+        stack.push_back({y - 1, x});
+        stack.push_back({y, x + 1});
+        stack.push_back({y, x - 1});
+      }
+    }
+  }
+  return (int)count;
+}
+""",
+    "valid-parentheses": """
+bool isValid(std::string s) {
+  std::vector<char> stack;
+  for (char c : s) {
+    if (c == '(' || c == '[' || c == '{') { stack.push_back(c); continue; }
+    char want = c == ')' ? '(' : (c == ']' ? '[' : '{');
+    if (stack.empty() || stack.back() != want) return false;
+    stack.pop_back();
+  }
+  return stack.empty();
+}
+""",
+    "climbing-stairs": """
+long long climbStairs(long long n) {
+  long long a = 1, b = 1;
+  for (long long i = 0; i < n; i++) { long long next = a + b; a = b; b = next; }
+  return a;
+}
+""",
+    "coin-change": """
+long long coinChange(std::vector<long long> coins, long long amount) {
+  const long long BIG = 1000000000LL;
+  std::vector<long long> dp(amount + 1, BIG);
+  dp[0] = 0;
+  for (long long a = 1; a <= amount; a++)
+    for (long long coin : coins)
+      if (coin <= a && dp[a - coin] + 1 < dp[a]) dp[a] = dp[a - coin] + 1;
+  return dp[amount] >= BIG ? -1 : dp[amount];
+}
+""",
+}
+
+RUST_SOLUTIONS = {
+    "two-sum": """
+fn twoSum(nums: Vec<i64>, target: i64) -> Vec<i64> {
+    for i in 0..nums.len() {
+        for j in (i + 1)..nums.len() {
+            if nums[i] + nums[j] == target {
+                return vec![i as i64, j as i64];
+            }
+        }
+    }
+    vec![]
+}
+""",
+    "valid-anagram": """
+fn isAnagram(s: String, t: String) -> bool {
+    let mut a: Vec<char> = s.chars().collect();
+    let mut b: Vec<char> = t.chars().collect();
+    a.sort();
+    b.sort();
+    a == b
+}
+""",
+    "number-of-islands": """
+fn numIslands(grid: Vec<Vec<String>>) -> i64 {
+    let mut grid = grid;
+    if grid.is_empty() { return 0; }
+    let rows = grid.len() as i64;
+    let cols = grid[0].len() as i64;
+    let mut count = 0i64;
+    for r in 0..rows {
+        for c in 0..cols {
+            if grid[r as usize][c as usize] != "1" { continue; }
+            count += 1;
+            let mut stack = vec![(r, c)];
+            while let Some((y, x)) = stack.pop() {
+                if y < 0 || x < 0 || y >= rows || x >= cols { continue; }
+                if grid[y as usize][x as usize] != "1" { continue; }
+                grid[y as usize][x as usize] = String::from("0");
+                stack.push((y + 1, x));
+                stack.push((y - 1, x));
+                stack.push((y, x + 1));
+                stack.push((y, x - 1));
+            }
+        }
+    }
+    count
+}
+""",
+    "valid-parentheses": """
+fn isValid(s: String) -> bool {
+    let mut stack: Vec<char> = Vec::new();
+    for c in s.chars() {
+        match c {
+            '(' | '[' | '{' => stack.push(c),
+            _ => {
+                let want = match c { ')' => '(', ']' => '[', _ => '{' };
+                if stack.pop() != Some(want) { return false; }
+            }
+        }
+    }
+    stack.is_empty()
+}
+""",
+    "climbing-stairs": """
+fn climbStairs(n: i64) -> i64 {
+    let (mut a, mut b) = (1i64, 1i64);
+    for _ in 0..n {
+        let next = a + b;
+        a = b;
+        b = next;
+    }
+    a
+}
+""",
+    "coin-change": """
+fn coinChange(coins: Vec<i64>, amount: i64) -> i64 {
+    const BIG: i64 = 1_000_000_000;
+    let mut dp = vec![BIG; (amount + 1) as usize];
+    dp[0] = 0;
+    for a in 1..=amount {
+        for &coin in coins.iter() {
+            if coin <= a && dp[(a - coin) as usize] + 1 < dp[a as usize] {
+                dp[a as usize] = dp[(a - coin) as usize] + 1;
+            }
+        }
+    }
+    if dp[amount as usize] >= BIG { -1 } else { dp[amount as usize] }
+}
+""",
+}
+
+GO_SOLUTIONS = {
+    "two-sum": """
+func twoSum(nums []int64, target int64) []int64 {
+	seen := map[int64]int64{}
+	for i, n := range nums {
+		if j, ok := seen[target-n]; ok {
+			return []int64{j, int64(i)}
+		}
+		seen[n] = int64(i)
+	}
+	return []int64{}
+}
+""",
+    "valid-anagram": """
+func isAnagram(s string, t string) bool {
+	if len(s) != len(t) {
+		return false
+	}
+	counts := map[rune]int{}
+	for _, c := range s {
+		counts[c]++
+	}
+	for _, c := range t {
+		counts[c]--
+		if counts[c] < 0 {
+			return false
+		}
+	}
+	return true
+}
+""",
+    "number-of-islands": """
+func numIslands(grid [][]string) int64 {
+	if len(grid) == 0 {
+		return 0
+	}
+	rows, cols := int64(len(grid)), int64(len(grid[0]))
+	var count int64
+	for r := int64(0); r < rows; r++ {
+		for c := int64(0); c < cols; c++ {
+			if grid[r][c] != "1" {
+				continue
+			}
+			count++
+			stack := [][2]int64{{r, c}}
+			for len(stack) > 0 {
+				top := stack[len(stack)-1]
+				stack = stack[:len(stack)-1]
+				y, x := top[0], top[1]
+				if y < 0 || x < 0 || y >= rows || x >= cols || grid[y][x] != "1" {
+					continue
+				}
+				grid[y][x] = "0"
+				stack = append(stack, [2]int64{y + 1, x}, [2]int64{y - 1, x},
+					[2]int64{y, x + 1}, [2]int64{y, x - 1})
+			}
+		}
+	}
+	return count
+}
+""",
+    "valid-parentheses": """
+func isValid(s string) bool {
+	var stack []rune
+	for _, c := range s {
+		if c == '(' || c == '[' || c == '{' {
+			stack = append(stack, c)
+			continue
+		}
+		var want rune = '{'
+		if c == ')' {
+			want = '('
+		} else if c == ']' {
+			want = '['
+		}
+		if len(stack) == 0 || stack[len(stack)-1] != want {
+			return false
+		}
+		stack = stack[:len(stack)-1]
+	}
+	return len(stack) == 0
+}
+""",
+    "climbing-stairs": """
+func climbStairs(n int64) int64 {
+	var a, b int64 = 1, 1
+	for i := int64(0); i < n; i++ {
+		a, b = b, a+b
+	}
+	return a
+}
+""",
+    "coin-change": """
+func coinChange(coins []int64, amount int64) int64 {
+	const big int64 = 1000000000
+	dp := make([]int64, amount+1)
+	for i := range dp {
+		dp[i] = big
+	}
+	dp[0] = 0
+	for a := int64(1); a <= amount; a++ {
+		for _, coin := range coins {
+			if coin <= a && dp[a-coin]+1 < dp[a] {
+				dp[a] = dp[a-coin] + 1
+			}
+		}
+	}
+	if dp[amount] >= big {
+		return -1
+	}
+	return dp[amount]
+}
+""",
+}
+
+
+# Keyed by language slug, so a test can ask for "every pack we have solutions
+# for" without knowing which those are, and without assuming they all cover the
+# same problems.
 SOLUTIONS = {
     "javascript": JAVASCRIPT_SOLUTIONS,
     "ruby": RUBY_SOLUTIONS,
     "php": PHP_SOLUTIONS,
+    "cpp": CPP_SOLUTIONS,
+    "rust": RUST_SOLUTIONS,
+    "go": GO_SOLUTIONS,
 }

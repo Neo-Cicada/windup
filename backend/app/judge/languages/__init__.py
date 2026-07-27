@@ -19,10 +19,13 @@ from app.judge.languages.base import (
     ProgramSpec,
     RunnerSpec,
 )
+from app.judge.languages.cpp import PACK as CPP_PACK
+from app.judge.languages.go import PACK as GO_PACK
 from app.judge.languages.javascript import PACK as JAVASCRIPT_PACK
 from app.judge.languages.php import PACK as PHP_PACK
 from app.judge.languages.python import PACK as PYTHON_PACK
 from app.judge.languages.ruby import PACK as RUBY_PACK
+from app.judge.languages.rust import PACK as RUST_PACK
 from app.judge.languages.sql import PACK as SQL_PACK
 
 
@@ -36,6 +39,9 @@ REGISTRY: dict[str, LanguagePack] = {
     RUBY_PACK.slug: RUBY_PACK,
     PHP_PACK.slug: PHP_PACK,
     SQL_PACK.slug: SQL_PACK,
+    CPP_PACK.slug: CPP_PACK,
+    RUST_PACK.slug: RUST_PACK,
+    GO_PACK.slug: GO_PACK,
 }
 
 # The language a problem falls back to, and the one the workbench opens on.

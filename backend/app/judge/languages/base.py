@@ -17,10 +17,14 @@ forged by emitting correct answers, which is just solving the problem.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from app.judge.signature import Signature
+
+if TYPE_CHECKING:
+    from app.judge.compile import CompileSpec
 
 # Replaced with the assembled program when the runner builds its argv. Most
 # interpreters here take the program on the command line (`-c`, `-e`), which is
@@ -51,6 +55,10 @@ class RunnerSpec:
     # program goes on stdin instead and the cases are substituted into it at
     # CASES_SLOT. Nothing else changes.
     program_on_stdin: bool = False
+    # Set for a language with no interpreter at all. The source is built to wasm
+    # on the host first, and *that* module is what the sandbox instantiates —
+    # same fuel, same memory limit, same absence of a filesystem.
+    compile: CompileSpec | None = None
 
 
 @dataclass(frozen=True)
@@ -59,6 +67,14 @@ class ProgramSpec:
 
     source: str
     runner: RunnerSpec
+    # Set by a pack that needs the cases *inside* the source rather than on
+    # stdin — the compiled languages, which render them as typed literals so the
+    # guest has no JSON to parse. The runner calls it with the case list and
+    # uses what comes back as the final source.
+    bind_cases: Callable[[list[dict[str, Any]]], str] | None = None
+
+    def source_for(self, cases: list[dict[str, Any]]) -> str:
+        return self.source if self.bind_cases is None else self.bind_cases(cases)
 
 
 @runtime_checkable

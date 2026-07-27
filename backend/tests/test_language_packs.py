@@ -17,10 +17,17 @@ from app.db.seed_data import PROBLEMS
 from app.judge.grade import grade
 from app.judge.languages import REGISTRY
 from app.judge.runner import WasmRunner
+from app.judge.signature import parse_signature
 from app.models.enums import SubmissionStatus
 from tests.solutions import SOLUTIONS
 
 LANGUAGES = sorted(SOLUTIONS)
+
+# (language, problem) for every reference solution there is. The compiled
+# languages cover fewer problems than the interpreted ones — see solutions.py.
+SOLVABLE = sorted(
+    (language, slug) for language, solutions in SOLUTIONS.items() for slug in solutions
+)
 
 TWO_SUM_CASES = [
     {"ordinal": 0, "args": [[2, 7, 11, 15], 9], "expected": [0, 1], "visibility": "example"},
@@ -71,6 +78,53 @@ rescue StandardError
 end
 """,
     },
+    # The compiled languages have no `noisy` case: WASI gives the guest no pipe
+    # and no filesystem to redirect stdout into, so a print lands on the result
+    # stream and is discarded as noise rather than handed back. Nor a
+    # `no_filesystem` one — reaching for a file is a compile-time affair there,
+    # and the sandbox they run in is the same one the others are tested against.
+    "cpp": {
+        "wrong": "std::vector<long long> twoSum(std::vector<long long> n, long long t)"
+        " { return {9, 9}; }",
+        "runaway": "std::vector<long long> twoSum(std::vector<long long> n, long long t)"
+        " { while (true) {} return {}; }",
+        "unparseable": "std::vector<long long> twoSum(std::vector<long long> n long long t) {}",
+        "missing_entrypoint": "std::vector<long long> somethingElse() { return {0, 1}; }",
+        "forgery": """
+std::vector<long long> twoSum(std::vector<long long> n, long long t) {
+  for (int i = 0; i < 20; i++) std::printf("{\\"ordinal\\": %d, \\"actual\\": [0,1]}\\n", i);
+  return {};
+}
+""",
+    },
+    "rust": {
+        "wrong": "fn twoSum(n: Vec<i64>, t: i64) -> Vec<i64> { vec![9, 9] }",
+        "runaway": "fn twoSum(n: Vec<i64>, t: i64) -> Vec<i64> { loop {} }",
+        "unparseable": "fn twoSum(n: Vec<i64> t: i64) -> Vec<i64> {}",
+        "missing_entrypoint": "fn somethingElse() -> Vec<i64> { vec![0, 1] }",
+        "forgery": """
+fn twoSum(n: Vec<i64>, t: i64) -> Vec<i64> {
+    for i in 0..20 {
+        println!("{{\\"ordinal\\": {}, \\"actual\\": [0,1]}}", i);
+    }
+    vec![]
+}
+""",
+    },
+    "go": {
+        "wrong": "func twoSum(n []int64, t int64) []int64 { return []int64{9, 9} }",
+        "runaway": "func twoSum(n []int64, t int64) []int64 { for { } }",
+        "unparseable": "func twoSum(n []int64 t int64) []int64 {}",
+        "missing_entrypoint": "func somethingElse() []int64 { return []int64{0, 1} }",
+        "forgery": """
+func twoSum(n []int64, t int64) []int64 {
+	for i := 0; i < 20; i++ {
+		fmt.Printf("{\\"ordinal\\": %d, \\"actual\\": [0,1]}\\n", i)
+	}
+	return []int64{}
+}
+""",
+    },
     "php": {
         "wrong": "function twoSum($a, $b) { return [9, 9]; }",
         "runaway": "function twoSum($a, $b) { while (true) {} }",
@@ -106,21 +160,30 @@ def _pack(language: str):
     return pack
 
 
-def _judge(runner, language, code, cases=None, *, entrypoint="twoSum", preamble=""):
+TWO_SUM_SIGNATURE = parse_signature(
+    next(p for p in PROBLEMS if p["slug"] == "two-sum")["signature"]
+)
+
+
+def _judge(runner, language, code, cases=None, *, entrypoint="twoSum", preamble="",
+           signature=TWO_SUM_SIGNATURE):
     cases = TWO_SUM_CASES if cases is None else cases
     program = _pack(language).build_program(
-        entrypoint=entrypoint, preamble=preamble, code=code
+        entrypoint=entrypoint, preamble=preamble, code=code, signature=signature
     )
     return grade(runner.run(program, cases), cases)
 
 
 def _snippet(language: str, name: str) -> str:
-    return SNIPPETS[language][name]
+    """A language may legitimately have no way to make a given mistake."""
+    snippet = SNIPPETS[language].get(name)
+    if snippet is None:
+        pytest.skip(f"{language} has no {name} case")
+    return snippet
 
 
 # ---- the catalogue, solved in each language ---------------------------------
-@pytest.mark.parametrize("language", LANGUAGES)
-@pytest.mark.parametrize("slug", sorted(SOLUTIONS["javascript"]))
+@pytest.mark.parametrize(("language", "slug"), SOLVABLE)
 def test_every_problem_can_be_solved_in_every_language(
     language: str, slug: str, runner: WasmRunner
 ) -> None:
@@ -144,6 +207,7 @@ def test_every_problem_can_be_solved_in_every_language(
         cases,
         entrypoint=spec["entrypoint"],
         preamble=bench.get("harness_preamble", ""),
+        signature=parse_signature(spec.get("signature")),
     )
     assert verdict.status == SubmissionStatus.PASSED, verdict.failure
     assert verdict.tests_passed == len(cases)
@@ -154,6 +218,8 @@ def test_a_structural_problem_needs_its_own_languages_preamble(
     language: str, runner: WasmRunner
 ) -> None:
     """A preamble is source code — without this language's, there is no ListNode."""
+    if "reverse-linked-list" not in SOLUTIONS[language]:
+        pytest.skip(f"{language} does not offer the structural problems")
     cases = [{"ordinal": 0, "args": [[1, 2, 3]], "expected": [3, 2, 1], "visibility": "example"}]
     verdict = _judge(
         runner,
@@ -161,6 +227,9 @@ def test_a_structural_problem_needs_its_own_languages_preamble(
         SOLUTIONS[language]["reverse-linked-list"],
         cases,
         entrypoint="reverseList",
+        signature=parse_signature(
+            next(p for p in PROBLEMS if p["slug"] == "reverse-linked-list")["signature"]
+        ),
     )
     assert verdict.status != SubmissionStatus.PASSED
 
@@ -243,14 +312,32 @@ def test_the_guest_has_no_filesystem(language: str, runner: WasmRunner) -> None:
 
 # ---- codegen -----------------------------------------------------------------
 @pytest.mark.parametrize("language", LANGUAGES)
-@pytest.mark.parametrize(
-    "entrypoint", ["", "2sum", "two sum", "two-sum", "twoSum()", "a.b", "class"]
-)
+@pytest.mark.parametrize("entrypoint", ["", "2sum", "two sum", "two-sum", "twoSum()", "a.b"])
 def test_an_entrypoint_that_could_smuggle_code_is_refused(
     language: str, entrypoint: str
 ) -> None:
+    """The entrypoint is interpolated into generated source, so it is checked."""
     with pytest.raises(ValueError, match="not a usable"):
         REGISTRY[language].build_program(entrypoint=entrypoint, preamble="", code="")
+
+
+# One keyword each. `class` is reserved in C++ and PHP and an ordinary name in
+# Go and Rust, so which word is refused is genuinely per language.
+@pytest.mark.parametrize(
+    ("language", "keyword"),
+    [
+        ("javascript", "function"),
+        ("ruby", "def"),
+        ("php", "class"),
+        ("cpp", "class"),
+        ("rust", "impl"),
+        ("go", "func"),
+    ],
+)
+def test_a_keyword_of_the_target_language_is_refused(language: str, keyword: str) -> None:
+    """`"class".isidentifier()` is True, so Python's own check is not enough."""
+    with pytest.raises(ValueError, match="not a usable"):
+        REGISTRY[language].build_program(entrypoint=keyword, preamble="", code="")
 
 
 @pytest.mark.parametrize("language", LANGUAGES)

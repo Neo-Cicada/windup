@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from app.core.config import settings
+from app.judge.compile import compile_to_wasm
 from app.judge.harness import RunResult, build_stdin, guest_complaints, parse_results
 from app.judge.languages import CASES_SLOT, PROGRAM_SLOT, ProgramSpec, enabled_packs
 
@@ -69,7 +70,9 @@ class WasmRunner:
         # JavaScript submission it is handed.
         self._module_for(self._python_override or settings.JUDGE_WASM_PATH, "python")
         for pack in enabled_packs():
-            if pack.slug != "python":
+            # A compiled language has no fixed module to preload — every
+            # submission builds its own.
+            if pack.slug != "python" and pack.wasm_path():
                 self._module_for(pack.wasm_path(), pack.slug)
 
     def _module_for(self, wasm_path: str, language: str) -> Any:
@@ -95,12 +98,31 @@ class WasmRunner:
     def run(self, spec: ProgramSpec, cases: list[dict[str, Any]]) -> RunResult:
         wasmtime = self._wasmtime
         language = spec.runner.language
-        wasm_path = (
-            self._python_override
-            if language == "python" and self._python_override is not None
-            else spec.runner.wasm_path
-        )
-        module = self._module_for(wasm_path, language)
+        # A compiled pack renders the cases into the source as typed literals,
+        # so the program is only complete once the cases are known.
+        source = spec.source_for(cases)
+        compile_ms = 0
+
+        if spec.runner.compile is not None:
+            built = compile_to_wasm(spec.runner.compile, source)
+            compile_ms = built.ms
+            if built.wasm is None:
+                # A build failure is a verdict, not a crash: the compiler's own
+                # diagnostics are the most useful thing to hand back.
+                return RunResult(
+                    runtime_ms=compile_ms,
+                    stderr=built.diagnostics,
+                    fatal="that didn't compile",
+                )
+            # Not cached: every submission is its own module.
+            module = wasmtime.Module(self._engine, built.wasm)
+        else:
+            wasm_path = (
+                self._python_override
+                if language == "python" and self._python_override is not None
+                else spec.runner.wasm_path
+            )
+            module = self._module_for(wasm_path, language)
 
         store = wasmtime.Store(self._engine)
         store.set_fuel(spec.runner.fuel if spec.runner.fuel is not None else settings.JUDGE_FUEL)
@@ -113,7 +135,7 @@ class WasmRunner:
             if spec.runner.program_on_stdin:
                 # No argv door for this interpreter, so the program goes down
                 # stdin and takes the cases with it.
-                stdin_f.write_text(spec.source.replace(CASES_SLOT, payload))
+                stdin_f.write_text(source.replace(CASES_SLOT, payload))
             else:
                 stdin_f.write_text(payload)
             stdout_f.touch()
@@ -121,8 +143,9 @@ class WasmRunner:
 
             wasi = wasmtime.WasiConfig()
             # The program travels on argv, which is why no language here needs a
-            # writable directory to be handed a file.
-            wasi.argv = [arg.replace(PROGRAM_SLOT, spec.source) for arg in spec.runner.argv]
+            # writable directory to be handed a file. A compiled program is the
+            # module itself and takes no arguments at all.
+            wasi.argv = [arg.replace(PROGRAM_SLOT, source) for arg in spec.runner.argv] or ["prog"]
             wasi.stdin_file = str(stdin_f)
             wasi.stdout_file = str(stdout_f)
             wasi.stderr_file = str(stderr_f)
@@ -166,7 +189,8 @@ class WasmRunner:
             return RunResult(
                 outcomes=parse_results(stdout_text),
                 timed_out=timed_out,
-                runtime_ms=runtime_ms,
+                # Building is part of what the toy waited for.
+                runtime_ms=runtime_ms + compile_ms,
                 stderr=stderr_text[-4000:],
                 fatal=fatal,
             )

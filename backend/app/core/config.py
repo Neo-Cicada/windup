@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     # lists them. A pack can be implemented and left out of here — that is what
     # a deployment that hasn't fetched an artifact yet looks like.
     JUDGE_LANGUAGES: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: ["python", "javascript", "ruby", "php", "sql"]
+        default_factory=lambda: ["python", "javascript", "ruby", "php", "sql", "cpp", "rust", "go"]
     )
     # Fuel is an instruction counter, not a clock. Measured on the seeded
     # catalogue: interpreter startup burns 0.24G, the heaviest problem (islands
@@ -61,6 +61,13 @@ class Settings(BaseSettings):
     # worst real solve and trips an infinite loop in about a second.
     JUDGE_FUEL: int = 8_000_000_000
     JUDGE_MEMORY_MB: int = 256
+    # C++, Rust and Go are built before they are run. The compiler is the one
+    # place untrusted input touches the host, so it gets a clock and a size cap
+    # of its own. Measured: clang ~1s, rustc ~1s, TinyGo ~3s.
+    JUDGE_COMPILE_TIMEOUT_SECONDS: int = 30
+    JUDGE_COMPILE_MAX_OUTPUT_MB: int = 64
+    # Where the compiled-language toolchains live, if not on PATH.
+    JUDGE_TOOLCHAIN_DIR: str = "vendor"
     # Belt-and-braces wall clock, in case a runner stalls somewhere fuel can't
     # see (a blocking host call). Fuel is the primary cap.
     JUDGE_TIMEOUT_SECONDS: int = 15

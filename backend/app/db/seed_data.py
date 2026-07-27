@@ -521,7 +521,10 @@ PROBLEMS: list[dict] = [
             "    return []"
         ),
         "xp_reward": 50,
-        "languages": {"javascript": {}, "ruby": {}, "php": {}},
+        "languages": {
+            "javascript": {}, "ruby": {}, "php": {},
+            "cpp": {}, "rust": {}, "go": {},
+        },
         "signature": {
             "params": [{"name": "nums", "type": "list<int>"}, {"name": "target", "type": "int"}],
             "returns": "list<int>",
@@ -572,7 +575,10 @@ PROBLEMS: list[dict] = [
             "    return len(s) == len(t) and Counter(s) == Counter(t)"
         ),
         "xp_reward": 50,
-        "languages": {"javascript": {}, "ruby": {}, "php": {}},
+        "languages": {
+            "javascript": {}, "ruby": {}, "php": {},
+            "cpp": {}, "rust": {}, "go": {},
+        },
         "signature": {
             "params": [{"name": "s", "type": "string"}, {"name": "t", "type": "string"}],
             "returns": "bool",
@@ -768,7 +774,10 @@ PROBLEMS: list[dict] = [
             "    return count"
         ),
         "xp_reward": 60,
-        "languages": {"javascript": {}, "ruby": {}, "php": {}},
+        "languages": {
+            "javascript": {}, "ruby": {}, "php": {},
+            "cpp": {}, "rust": {}, "go": {},
+        },
         "signature": {
             "params": [{"name": "grid", "type": "matrix<string>"}],
             "returns": "int",
@@ -873,7 +882,10 @@ PROBLEMS: list[dict] = [
             "    return not stack"
         ),
         "xp_reward": 50,
-        "languages": {"javascript": {}, "ruby": {}, "php": {}},
+        "languages": {
+            "javascript": {}, "ruby": {}, "php": {},
+            "cpp": {}, "rust": {}, "go": {},
+        },
         "signature": {
             "params": [{"name": "s", "type": "string"}],
             "returns": "bool",
@@ -920,7 +932,10 @@ PROBLEMS: list[dict] = [
             "    return b"
         ),
         "xp_reward": 50,
-        "languages": {"javascript": {}, "ruby": {}, "php": {}},
+        "languages": {
+            "javascript": {}, "ruby": {}, "php": {},
+            "cpp": {}, "rust": {}, "go": {},
+        },
         "signature": {
             "params": [{"name": "n", "type": "int"}],
             "returns": "int",
@@ -971,7 +986,10 @@ PROBLEMS: list[dict] = [
             "    return -1 if dp[amount] == float('inf') else dp[amount]"
         ),
         "xp_reward": 80,
-        "languages": {"javascript": {}, "ruby": {}, "php": {}},
+        "languages": {
+            "javascript": {}, "ruby": {}, "php": {},
+            "cpp": {}, "rust": {}, "go": {},
+        },
         "signature": {
             "params": [{"name": "coins", "type": "list<int>"}, {"name": "amount", "type": "int"}],
             "returns": "int",

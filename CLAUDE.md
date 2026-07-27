@@ -37,6 +37,7 @@ uv sync                                  # create .venv, install deps (Python >=
 cp .env.example .env                     # DATABASE_URL / SECRET_KEY / CORS_ORIGINS / JUDGE_LANGUAGES
 ./scripts/fetch_language_wasm.sh         # every language's WASI build (gitignored)
 ./scripts/fetch_language_wasm.sh javascript   # or just one
+./scripts/fetch_toolchains.sh            # the C++/Rust/Go compilers, if you want them
 docker compose up -d db                  # or: createdb windup
 uv run alembic upgrade head
 uv run python -m app.db.seed --demo      # catalogue + demo toy (bramble@playroom.com / windup123)
@@ -81,6 +82,7 @@ A toy picks the language per submission, and the judge is built so that adding o
 - Every interpreter takes its program on **argv** (`-c`, `-e`), which is how the guest keeps having no filesystem.
 - **`languages/__init__.py` is the registry**; `settings.JUDGE_LANGUAGES` is what a deployment actually offers. Registered and offered are different questions — a pack can exist while its artifact hasn't been fetched. Today: Python, JavaScript, Ruby, PHP, SQL.
 - **SQL is not a function call**, so its pack ignores the entrypoint and signature: the preamble is the schema, a case's `args` are the rows to load, and `expected` is the result set. It emits a *Python* program using `sqlite3` and hands it to the Python pack, which is why it needs no artifact on either side — Pyodide bundles `sqlite3` too, so Run works in the browser with no extra download.
+- **C++, Rust and Go are compiled first** (`compile.py`, `languages/compiled.py`), on the host, into a wasm module the same sandbox then runs. They parse no JSON: the host renders each case's arguments as typed literals into the source, so the compiler type-checks every call and only the return value needs serialising. Consequences: the toy's own prints are discarded rather than handed back (WASI offers nothing to redirect stdout into), and they don't offer the three structural problems (a cyclic linked list can't be expressed with Rust's `Box`). Toolchains are a worker-host prerequisite — `scripts/fetch_toolchains.sh`.
 - Each pack is shaped by its interpreter's quirks and those are documented where they bite: JavaScript needs `-C` so a preamble may redefine `_build`; PHP cannot redeclare a function at all, so its adapters come *last* and stand down, and it has no argv door so its program travels on stdin with the cases inside it.
 - Fuel is **per pack**. 8G is tuned to CPython (0.24G of it is interpreter startup) and is wrong for anything else; QuickJS starts in 3.1M and gets 3G.
 
