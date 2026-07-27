@@ -25,8 +25,9 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.db.session import SessionLocal, engine
+from app.judge.bench import bench_for
 from app.judge.grade import Verdict, grade
-from app.judge.harness import build_program
+from app.judge.languages import UnknownLanguage
 from app.judge.runner import Runner, get_runner
 from app.models import Problem, Submission, SubmissionStatus
 from app.services.submissions import settle
@@ -122,18 +123,37 @@ def judge_submission(runner: Runner, submission: Submission, problem: Problem) -
             failure={"error": "This toy has no test rig yet — Sprocket is still building it."},
         )
 
-    program = build_program(
-        entrypoint=problem.entrypoint,
-        preamble=problem.harness_preamble,
-        code=submission.code,
-    )
+    try:
+        bench = bench_for(problem, submission.language)
+        program = bench.pack.build_program(
+            entrypoint=bench.entrypoint,
+            preamble=bench.preamble,
+            code=submission.code,
+            signature=bench.signature,
+        )
+    except UnknownLanguage as unknown:
+        # Submitting already checks this, so reaching here means a language was
+        # retired between the submit and the claim. Say so rather than failing
+        # the toy's code.
+        return Verdict(
+            status=SubmissionStatus.ERROR,
+            tests_passed=0,
+            tests_total=len(cases),
+            runtime_ms=0,
+            failure={"error": str(unknown)},
+        )
+
     return grade(runner.run(program, cases), cases, compare_mode=problem.compare_mode)
 
 
 async def process_one(db: AsyncSession, runner: Runner, submission_id) -> None:
     submission = await db.scalar(
         select(Submission)
-        .options(selectinload(Submission.problem).selectinload(Problem.tests))
+        .options(
+            selectinload(Submission.problem).options(
+                selectinload(Problem.tests), selectinload(Problem.languages)
+            )
+        )
         .where(Submission.id == submission_id)
     )
     if submission is None:  # pragma: no cover - deleted mid-flight

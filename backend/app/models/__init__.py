@@ -1,7 +1,7 @@
 """SQLAlchemy models. Importing this package registers every table on Base.metadata."""
 
 from app.db.base import Base
-from app.models.content import Achievement, Problem, ProblemTest, Zone
+from app.models.content import Achievement, Problem, ProblemLanguage, ProblemTest, Zone
 from app.models.enums import (
     BossStatus,
     ChestTier,
@@ -30,6 +30,7 @@ __all__ = [
     "DailyQuest",
     "Difficulty",
     "Problem",
+    "ProblemLanguage",
     "ProblemTest",
     "Progress",
     "Submission",

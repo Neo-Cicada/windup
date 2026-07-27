@@ -16,6 +16,7 @@ from app.judge.harness import (
     build_stdin,
     parse_results,
 )
+from app.judge.languages import PROGRAM_SLOT
 from app.judge.runner import SubprocessRunner, WasmRunner, get_runner
 from app.models import Submission
 from app.models.enums import SubmissionStatus
@@ -45,14 +46,21 @@ def test_build_program_rejects_anything_that_could_smuggle_code(entrypoint: str)
 
 
 def test_build_program_layers_preamble_code_and_driver_in_order() -> None:
-    program = build_program(
-        entrypoint="solve", preamble="# PREAMBLE HERE", code="# TOY CODE HERE"
-    )
-    assert program.index("def _build") < program.index("# PREAMBLE HERE")
-    assert program.index("# PREAMBLE HERE") < program.index("# TOY CODE HERE")
-    assert program.index("# TOY CODE HERE") < program.index("__windup_main")
-    assert "solve(*_build(" in program
-    assert "__WINDUP_ENTRYPOINT__" not in program
+    spec = build_program(entrypoint="solve", preamble="# PREAMBLE HERE", code="# TOY CODE HERE")
+    source = spec.source
+    assert source.index("def _build") < source.index("# PREAMBLE HERE")
+    assert source.index("# PREAMBLE HERE") < source.index("# TOY CODE HERE")
+    assert source.index("# TOY CODE HERE") < source.index("__windup_main")
+    assert "solve(*_build(" in source
+    assert "__WINDUP_ENTRYPOINT__" not in source
+
+
+def test_build_program_names_the_interpreter_the_sandbox_should_instantiate() -> None:
+    """The runner learns which wasm to load from the program, not from a global."""
+    spec = build_program(entrypoint="solve", preamble="", code="")
+    assert spec.runner.language == "python"
+    assert spec.runner.wasm_path.endswith("python.wasm")
+    assert PROGRAM_SLOT in spec.runner.argv
 
 
 def test_build_stdin_carries_arguments_and_never_expected_values() -> None:

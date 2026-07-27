@@ -20,6 +20,7 @@ from app.db.session import SessionLocal, engine
 from app.models import (
     Achievement,
     Problem,
+    ProblemLanguage,
     ProblemTest,
     Progress,
     Submission,
@@ -57,6 +58,9 @@ async def seed_catalogue(db: AsyncSession) -> None:
         data = dict(spec)
         zone = zones_by_slug[data.pop("zone")]
         cases = data.pop("tests", [])
+        # `signature` reads better in the catalogue than `signature_json` does.
+        data["signature_json"] = data.pop("signature", None)
+        benches = data.pop("languages", {})
         problem = await db.scalar(select(Problem).where(Problem.slug == data["slug"]))
         if problem is None:
             problem = Problem(**data, zone_id=zone.id, sort_order=order)
@@ -67,9 +71,25 @@ async def seed_catalogue(db: AsyncSession) -> None:
             problem.zone_id = zone.id
             problem.sort_order = order
 
-        # Test cases are replaced wholesale rather than diffed — they're
-        # content, and re-seeding should leave exactly what seed_data declares.
+        # Test cases and benches are replaced wholesale rather than diffed —
+        # they're content, and re-seeding should leave exactly what seed_data
+        # declares. The cases are shared by every language; only the benches are
+        # per-language, which is why there is one list of them and not several.
         await db.flush()
+        await db.execute(
+            delete(ProblemLanguage).where(ProblemLanguage.problem_id == problem.id)
+        )
+        for language, bench in benches.items():
+            db.add(
+                ProblemLanguage(
+                    problem_id=problem.id,
+                    language=language,
+                    entrypoint=bench.get("entrypoint"),
+                    starter_code=bench.get("starter_code"),
+                    harness_preamble=bench.get("harness_preamble", ""),
+                )
+            )
+
         await db.execute(delete(ProblemTest).where(ProblemTest.problem_id == problem.id))
         for ordinal, case in enumerate(cases):
             db.add(

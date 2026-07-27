@@ -26,14 +26,17 @@ npx tsc --noEmit       # typecheck without building
 
 There is no frontend test runner. `/academy` needs the backend up, a judge worker running, and a logged-in session.
 
-The problem screen has two buttons and they are not the same thing. **Run** executes the visible examples in the browser via Pyodide in a Web Worker (`lib/pyodide.ts`, worker at `public/pyodide/runner.worker.js`) — instant, earns nothing, grades nothing, and keeps the great majority of executions off the server. **Submit** sends the code to the judge and is the only thing that decides whether a problem is solved. The ~11MB runtime is gitignored, copied in by `scripts/copy-pyodide.mjs`, and fetched only when a toy first presses Run.
+The problem screen has two buttons and they are not the same thing. **Run** executes the visible examples in the browser — instant, earns nothing, grades nothing, and keeps the great majority of executions off the server. **Submit** sends the code to the judge and is the only thing that decides whether a problem is solved.
+
+`lib/runners/` holds one browser engine per language it is cheap to run locally: Python through Pyodide (`public/pyodide/runner.worker.js`; the ~11MB runtime is gitignored, copied in by `scripts/copy-pyodide.mjs`, and fetched only when a toy first presses Run) and JavaScript through a plain Worker (`public/runners/js.worker.js`, which downloads nothing at all). A language with no entry in that registry simply has no Run button — `runs_in_browser` on the problem payload is what the UI asks.
 
 ### Backend (`cd backend`)
 
 ```bash
 uv sync                                  # create .venv, install deps (Python >= 3.12)
-cp .env.example .env                     # DATABASE_URL / SECRET_KEY / CORS_ORIGINS
-./scripts/fetch_python_wasm.sh           # CPython-WASI build for the judge (20MB, gitignored)
+cp .env.example .env                     # DATABASE_URL / SECRET_KEY / CORS_ORIGINS / JUDGE_LANGUAGES
+./scripts/fetch_language_wasm.sh         # every language's WASI build (gitignored)
+./scripts/fetch_language_wasm.sh javascript   # or just one
 docker compose up -d db                  # or: createdb windup
 uv run alembic upgrade head
 uv run python -m app.db.seed --demo      # catalogue + demo toy (bramble@playroom.com / windup123)
@@ -63,11 +66,25 @@ Layering is `api/v1/endpoints/*` → `services/*` → `models/*`, with `schemas/
 
 ### The judge (`app/judge/`)
 
-`harness.py` assembles the guest program, `runner.py` executes it, `grade.py` compares, `worker.py` is the claim loop. Every problem is called the same way — `_dump(entrypoint(*_build(args)))` — so a problem needing a `ListNode` defines it and overrides the adapters in its own `harness_preamble`, and the runner needs no per-problem branching.
+`languages/` assembles the guest program, `runner.py` executes it, `grade.py` compares, `worker.py` is the claim loop. Every problem is called the same way — `_dump(entrypoint(*_build(args)))` — so a problem needing a `ListNode` defines it and overrides the adapters in its own `harness_preamble`, and the runner needs no per-problem branching.
 
 The security property is that **expected values never enter the sandbox**: only arguments go in, and the host compares. Submitted code shares a process with the driver and can write anything to stdout, but without the expected values the only way to forge a pass is to emit correct answers.
 
-`WasmRunner` (default) is CPython-on-WASI under wasmtime — fuel caps CPU, a store limit caps memory, and no preopened directory means no filesystem and no sockets. `SubprocessRunner` does **not** sandbox and refuses to be selected outside `ENV=development`.
+`WasmRunner` (default) runs an interpreter-on-WASI under wasmtime — fuel caps CPU, a store limit caps memory, and no preopened directory means no filesystem and no sockets. It compiles every offered language's module at startup, so a missing artifact is a refusal to boot with the fetch command, not a failed submission an hour later. `SubprocessRunner` does **not** sandbox, is Python-only, and refuses to be selected outside `ENV=development`.
+
+#### Languages
+
+A toy picks the language per submission, and the judge is built so that adding one changes nothing about grading:
+
+- **One set of test cases grades every language.** `args_json` / `expected_json` are plain JSON compared on the host, so `grade.py` cannot tell which language produced a result — and has no per-language code in it at all.
+- **A language pack (`languages/*.py`) owns one thing**: turning code into a program, plus the `RunnerSpec` naming which wasm to instantiate and with what argv. Every pack's driver speaks the same wire format — `{"tests":[{ordinal,args}]}` in on stdin, one `{ordinal,actual,stdout,error}` JSON object per line out — which is what makes the security property hold once rather than per language.
+- Every interpreter takes its program on **argv** (`-c`, `-e`), which is how the guest keeps having no filesystem.
+- **`languages/__init__.py` is the registry**; `settings.JUDGE_LANGUAGES` is what a deployment actually offers. Registered and offered are different questions — a pack can exist while its artifact hasn't been fetched.
+- Fuel is **per pack**. 8G is tuned to CPython (0.24G of it is interpreter startup) and is wrong for anything else; QuickJS starts in 3.1M and gets 3G.
+
+`bench.py` answers which languages a *problem* offers. The default (`problems.language`) is always offered, since the problem's own `starter_code` and `harness_preamble` were written for it; anything else needs a `problem_languages` row. A preamble is source code, so it is never inherited across languages — only the default's comes from the problem itself.
+
+`signature.py` holds the small type language (`int`, `list<int>`, `matrix<string>`, `listnode`, `null<T>`, …) that `problems.signature_json` is written in. It describes the **call**, not the JSON: linked-list-cycle's cases hold two values that `_build` folds into one `head`, so its signature has one param. Packs generate starter stubs from it, which is what stops per-submission language choice from meaning hundreds of hand-written stubs — a bench row only exists to override that, usually with a structural preamble.
 
 Payout lives in `app/services/submissions.py::settle()`. Three things keep it correct and all three are load-bearing, because the deployment story is "run more workers": `settled_at` stops a retried job paying twice; a `SELECT … FOR UPDATE` on the toy's `progress` row serialises settlement per toy (without it, concurrent settlements clobber each other's counters and a solve disappears); and the already-paid probe tests for a previously *settled* run rather than any other passing run (without that, two unsettled passing runs each defer to the other and neither pays).
 
@@ -83,6 +100,7 @@ These are the load-bearing rules; several endpoints exist specifically to enforc
 
 - **The server decides whether a submission passed.** `SubmissionIn` has no `status` field — the client cannot declare a verdict. `POST /problems/{slug}/submit` queues the code and returns `202`; a judge worker runs it and the client polls `GET /submissions/{id}`. Everything that used to fire off the submit response (confetti, XP, the boss round) now fires off the verdict.
 - Hidden test cases never leave the server, exactly like locked chests. `ProblemDetailOut` carries only `example`-visibility cases plus a `hidden_test_count`. A failing *hidden* case reports its arguments and the toy's own output but withholds the expected value — otherwise the hidden tests become a lookup table.
+- **The problem decides which languages it can be solved in.** `ProblemDetailOut.languages` is the list, and submitting in anything else is a `400` — the client cannot invent a bench, and the verdict names the language that produced it.
 - Locked help-chest tiers come back as `null` from `GET /problems/{slug}` — the server never ships a chest the user hasn't opened. Opening one records a `ChestUnlock`, which is what makes a later solve "aided" (base reward instead of double).
 - Re-solving a problem pays nothing, which is also what stops old solves from clearing a boss rematch.
 - Boss `complete` is not self-declared: it counts distinct problems solved *during that session* (submissions carrying its `boss_session_id` that paid out XP) and returns `409` naming the shortfall. The clock is computed server-side from the last resume, so refreshing or opening a second tab can't extend it.
@@ -117,7 +135,7 @@ The three public routes follow the same container/presentational split one level
 
 The boss fight in particular *must* live there: a submission only counts towards a round if it carries the running session's id, and that id is read from the problem route. `/boss/current` is fetched on provider mount rather than when the boss screen opens, because a bookmarked problem link is a normal way in.
 
-`NAV` in `components/academy/data.ts` is the single source of truth for the sidebar — `href`, `label` (the button) and `title` (the topbar). `isNavActive` is what keeps "Problem" lit on `/academy/problem/two-sum`; `titleForPath` feeds the topbar. Unsaved workbench code is kept per slug in `sessionStorage` (`components/academy/drafts.ts`), since the editor now unmounts when you leave its route.
+`NAV` in `components/academy/data.ts` is the single source of truth for the sidebar — `href`, `label` (the button) and `title` (the topbar). `isNavActive` is what keeps "Problem" lit on `/academy/problem/two-sum`; `titleForPath` feeds the topbar. Unsaved workbench code is kept per slug *and language* in `sessionStorage` (`components/academy/drafts.ts`), since the editor unmounts when you leave its route and switching benches to compare two stubs should not throw either attempt away.
 
 ### Data layer (`lib/`)
 

@@ -46,6 +46,15 @@ class Settings(BaseSettings):
     JUDGE_RUNNER: str = "wasm"  # "wasm" | "subprocess"
     # CPython built for WASI. Fetched by scripts/fetch_python_wasm.sh.
     JUDGE_WASM_PATH: str = "vendor/python.wasm"
+    # Where every other language's WASI build lives, fetched by
+    # scripts/fetch_language_wasm.sh.
+    JUDGE_WASM_DIR: str = "vendor"
+    # The languages this deployment actually offers, in the order the workbench
+    # lists them. A pack can be implemented and left out of here — that is what
+    # a deployment that hasn't fetched an artifact yet looks like.
+    JUDGE_LANGUAGES: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["python", "javascript"]
+    )
     # Fuel is an instruction counter, not a clock. Measured on the seeded
     # catalogue: interpreter startup burns 0.24G, the heaviest problem (islands
     # on a 200x200 grid) 1.7G, and this machine runs ~7G/sec. 8G is ~5x the
@@ -69,11 +78,11 @@ class Settings(BaseSettings):
     # A worker seen within this window counts as alive.
     JUDGE_LIVENESS_WINDOW_SECONDS: int = 60
 
-    @field_validator("CORS_ORIGINS", mode="before")
+    @field_validator("CORS_ORIGINS", "JUDGE_LANGUAGES", mode="before")
     @classmethod
-    def _split_origins(cls, v: object) -> object:
+    def _split_list(cls, v: object) -> object:
         if isinstance(v, str):
-            return [origin.strip() for origin in v.split(",") if origin.strip()]
+            return [item.strip() for item in v.split(",") if item.strip()]
         return v
 
     @model_validator(mode="after")

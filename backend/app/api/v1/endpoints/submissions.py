@@ -132,6 +132,7 @@ async def read_submission(
     result = SubmissionResultOut(
         submission_id=submission.id,
         status=SubmissionStatus(submission.status),
+        language=submission.language,
         unaided=submission.unaided,
         tests_passed=submission.tests_passed,
         tests_total=submission.tests_total,

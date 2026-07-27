@@ -94,9 +94,10 @@ except signup, login, refresh, and `/health`.
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/problems` | List; filter by `zone`, `difficulty` |
-| `GET` | `/problems/{slug}` | Detail. **Locked tiers come back as `null`** — the server never leaks a chest you haven't opened |
+| `GET` | `/problems/{slug}` | Detail, including a bench per language it can be solved in. **Locked tiers come back as `null`** — the server never leaks a chest you haven't opened |
+| `GET` | `/languages` | What this deployment can judge |
 | `POST` | `/problems/{slug}/chests/{tier}` | Open `hint` \| `approach` \| `solution`; forfeits the unaided bonus |
-| `POST` | `/problems/{slug}/submit` | Queue the code for judging. **202**, returns a submission id — it does not run anything |
+| `POST` | `/problems/{slug}/submit` | Queue the code for judging. **202**, returns a submission id — it does not run anything. A language the problem doesn't offer is a **400** |
 | `GET` | `/submissions/{id}` | Poll for the verdict. Verdict fields are `null` until the judge has ruled |
 
 Scoring matches the frontend: an unaided solve pays double the problem's reward
@@ -169,7 +170,11 @@ backend/
 - **ChestUnlock**: which tiers a toy has opened per problem — this is what makes a
   solve "aided"
 - **ProblemTest**: the graded cases. `example` ones ship to the client for the
-  in-browser Run button; `hidden` ones never leave the server
+  in-browser Run button; `hidden` ones never leave the server. Shared by every
+  language a problem offers
+- **ProblemLanguage**: one bench — the stub, preamble and entrypoint for one
+  language of one problem. Absent for the problem's own `language`, which needs
+  no row
 - **Submission**: every submit, its place in the judge queue, its verdict, and the
   charge it paid out. Doubles as the queue table
 - **DailyQuest**: today's three cards
@@ -183,7 +188,7 @@ Submitted code is executed, and the server decides whether it passed. Two
 processes are involved and neither of them is the one serving requests:
 
 ```bash
-./scripts/fetch_python_wasm.sh            # once: the CPython-WASI build (20MB, gitignored)
+./scripts/fetch_language_wasm.sh          # once: every language's WASI build (gitignored)
 uv run python -m app.judge.worker         # the judge; run as many as you need
 uv run python -m app.judge.worker --once  # drain the queue and exit
 ```
@@ -196,15 +201,22 @@ not the event loop serving everyone else.
 
 `app/judge/`:
 
-- `harness.py` assembles `default adapters + the problem's preamble + the toy's
+- `languages/*.py` assemble `default adapters + the problem's preamble + the toy's
   code + a driver`. Every problem is called the same way, `_dump(entrypoint(*_build(args)))`,
   so nothing needs per-problem branching; a problem that needs a `ListNode` defines
-  it, and overrides `_build`/`_dump`, in its `harness_preamble`.
-- `runner.py` runs it. `WasmRunner` (default) executes CPython-on-WASI under
+  it, and overrides `_build`/`_dump`, in its `harness_preamble`. One pack per
+  language, all producing the same wire format (see below).
+- `harness.py` is what is left once assembly is per-language: the case payload in,
+  and the JSONL read back out.
+- `bench.py` answers which languages a given problem offers, and with what stub and
+  preamble. `signature.py` is the type language those stubs are generated from.
+- `runner.py` runs it. `WasmRunner` (default) executes an interpreter-on-WASI under
   wasmtime: fuel metering caps CPU, a store memory limit caps allocation, and
   because no directory is ever preopened the guest has no filesystem and no
-  sockets. `SubprocessRunner` is a development fallback that does **not** sandbox,
-  and refuses to be selected outside `ENV=development`.
+  sockets. It compiles every offered language's module at startup, so a missing
+  artifact refuses to boot with the command to fetch it rather than failing a
+  submission later. `SubprocessRunner` is a development fallback that does **not**
+  sandbox, is Python-only, and refuses to be selected outside `ENV=development`.
 - `grade.py` compares. **Expected values never enter the sandbox** — only arguments
   go in, and the host does the comparison. Submitted code shares a process with the
   driver and can print whatever it likes, but with no expected values in reach the
@@ -223,12 +235,34 @@ passing run exists: two unsettled passing runs would otherwise each defer to the
 other and neither would pay.
 
 Tuning lives in `app/core/config.py` as `JUDGE_*` settings, not as literals.
-`JUDGE_FUEL` is an instruction budget, not a clock: interpreter startup burns
+`JUDGE_FUEL` is an instruction budget, not a clock: CPython's startup burns
 0.24G, the heaviest seeded problem 1.7G, and the default 8G trips a runaway loop
-in about half a second.
+in about half a second. It is a *default* — a pack whose interpreter is cheaper
+sets its own, and QuickJS does (3.1M startup, 3G budget, runaway in ~170ms).
 
-A problem with `graded=False` (the SQL one — there is no SQL runner yet) skips the
-judge and settles inline on the old honour system.
+A problem with `graded=False` skips the judge and settles inline on the honour
+system. Nothing in the seeded catalogue needs that today.
+
+### More than one language
+
+A toy picks the language per submission, and adding one changes nothing about
+grading:
+
+- **One set of cases grades every language.** `args_json` / `expected_json` are
+  plain JSON compared on the host, so `grade.py` has no per-language code in it.
+- Every pack's driver speaks the same wire format — `{"tests":[{ordinal,args}]}`
+  in on stdin, one `{ordinal,actual,stdout,error}` JSON object per line out — so
+  the security property above is argued once, not once per language.
+- Every interpreter takes its program on **argv** (`-c`, `-e`), which is how the
+  guest keeps having no filesystem.
+- `languages/__init__.py` is the registry; `JUDGE_LANGUAGES` is what a deployment
+  offers. `GET /languages` reports the latter.
+- A problem offers its own `language` plus whatever `problem_languages` rows it
+  has. `problems.signature_json` describes the *call* — not the JSON, since
+  `_build` may fold several JSON values into one argument — and every pack
+  generates its starter stub from it. A bench row exists to override that,
+  usually with a structural preamble, because a preamble is source code and is
+  never inherited across languages.
 
 ## The frontend
 

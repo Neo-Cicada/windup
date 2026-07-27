@@ -90,6 +90,34 @@ def solution_for(slug: str) -> str:
     return next(p for p in PROBLEMS if p["slug"] == slug)["solution"]
 
 
+class DispatchRunner:
+    """Subprocess for Python, wasm for everything else.
+
+    Python is the one language with a host interpreter to borrow, so it stays on
+    the subprocess runner: no 20MB artifact needed, and it is the faster of the
+    two per run. Every other language exists only as a wasm build, so those go to
+    the real sandbox — and skip when its artifact hasn't been fetched.
+    """
+
+    def __init__(self) -> None:
+        from app.judge.runner import SubprocessRunner
+
+        self._subprocess = SubprocessRunner()
+        self._wasm = None
+
+    def run(self, spec, cases):
+        if spec.runner.language == "python":
+            return self._subprocess.run(spec, cases)
+        if self._wasm is None:
+            from app.judge.runner import WasmRunner
+
+            try:
+                self._wasm = WasmRunner()
+            except FileNotFoundError as missing:
+                pytest.skip(str(missing))
+        return self._wasm.run(spec, cases)
+
+
 class Judge:
     """Stands in for the worker process.
 
@@ -99,13 +127,9 @@ class Judge:
     """
 
     def __init__(self, client: AsyncClient, auth: dict[str, str]) -> None:
-        from app.judge.runner import SubprocessRunner
-
         self._client = client
         self._auth = auth
-        # Subprocess rather than wasm: no 20MB artifact needed, and it's the
-        # faster of the two per run. The wasm runner has its own tests.
-        self._runner = SubprocessRunner()
+        self._runner = DispatchRunner()
 
     async def drain(self) -> int:
         from app.judge.worker import claim_batch, process_one

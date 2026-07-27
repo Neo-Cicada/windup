@@ -213,6 +213,96 @@ def _build(args):
 """
 
 
+# ---- JavaScript benches -----------------------------------------------------
+# The same structures in another syntax. Only the problems whose entrypoint takes
+# something that isn't plain JSON need one of these; everywhere else the stub is
+# generated from the signature and the adapters stay the identity pair.
+JS_LIST_NODE = """
+function ListNode(val, next) {
+  this.val = val === undefined ? 0 : val;
+  this.next = next === undefined ? null : next;
+}
+"""
+
+JS_REVERSE_LIST_PREAMBLE = (
+    JS_LIST_NODE
+    + """
+function _build(args) {
+  var vals = args[0];
+  var head = null;
+  for (var i = vals.length - 1; i >= 0; i--) head = new ListNode(vals[i], head);
+  return [head];
+}
+
+function _dump(node) {
+  var out = [];
+  while (node !== null && node !== undefined) {
+    out.push(node.val);
+    node = node.next;
+  }
+  return out;
+}
+"""
+)
+
+JS_CYCLE_PREAMBLE = (
+    JS_LIST_NODE
+    + """
+function _build(args) {
+  var vals = args[0];
+  var pos = args[1];
+  if (vals.length === 0) return [null];
+  var nodes = vals.map(function (v) { return new ListNode(v); });
+  for (var i = 0; i < nodes.length - 1; i++) nodes[i].next = nodes[i + 1];
+  if (pos >= 0) nodes[nodes.length - 1].next = nodes[pos];
+  return [nodes[0]];
+}
+"""
+)
+
+JS_TREE_PREAMBLE = """
+function TreeNode(val, left, right) {
+  this.val = val === undefined ? 0 : val;
+  this.left = left === undefined ? null : left;
+  this.right = right === undefined ? null : right;
+}
+
+function _build(args) {
+  // Level-order list with nulls, the shape LeetCode prints trees in.
+  var vals = args[0];
+  if (vals.length === 0 || vals[0] === null) return [null];
+  var root = new TreeNode(vals[0]);
+  var queue = [root];
+  var i = 1;
+  while (queue.length > 0 && i < vals.length) {
+    var node = queue.shift();
+    if (i < vals.length) {
+      var left = vals[i++];
+      if (left !== null) { node.left = new TreeNode(left); queue.push(node.left); }
+    }
+    if (i < vals.length) {
+      var right = vals[i++];
+      if (right !== null) { node.right = new TreeNode(right); queue.push(node.right); }
+    }
+  }
+  return [root];
+}
+"""
+
+
+# Two keys carry the multi-language half of a problem:
+#
+# `signature` describes the *call* — what the entrypoint takes and returns, in
+# the type language of app/judge/signature.py. Note that it is the call and not
+# the JSON: linked-list-cycle's cases hold two values that `_build` folds into
+# one `head`, so its signature has one param. Every pack generates its starter
+# stub from this, which is what stops eight languages from meaning eight hundred
+# hand-written stubs.
+#
+# `languages` overrides that generation per language — a preamble defining
+# whatever the problem needs, and a stub where the generated one won't do. The
+# test cases are deliberately not in there: they are plain JSON compared on the
+# host, so one set of them grades every language.
 PROBLEMS: list[dict] = [
     {
         "zone": "building-blocks",
@@ -253,6 +343,11 @@ PROBLEMS: list[dict] = [
             "    return []"
         ),
         "xp_reward": 50,
+        "languages": {"javascript": {}},
+        "signature": {
+            "params": [{"name": "nums", "type": "list<int>"}, {"name": "target", "type": "int"}],
+            "returns": "list<int>",
+        },
         "entrypoint": "twoSum",
         # Every case has exactly one valid pair, so comparing indices is fair.
         "tests": [
@@ -299,6 +394,11 @@ PROBLEMS: list[dict] = [
             "    return len(s) == len(t) and Counter(s) == Counter(t)"
         ),
         "xp_reward": 50,
+        "languages": {"javascript": {}},
+        "signature": {
+            "params": [{"name": "s", "type": "string"}, {"name": "t", "type": "string"}],
+            "returns": "bool",
+        },
         "entrypoint": "isAnagram",
         "tests": [
             {"visibility": "example", "args": ["anagram", "nagaram"], "expected": True},
@@ -359,6 +459,13 @@ PROBLEMS: list[dict] = [
             "    return prev"
         ),
         "xp_reward": 60,
+        "languages": {
+            "javascript": {"harness_preamble": JS_REVERSE_LIST_PREAMBLE},
+        },
+        "signature": {
+            "params": [{"name": "head", "type": "listnode"}],
+            "returns": "listnode",
+        },
         "entrypoint": "reverseList",
         "harness_preamble": REVERSE_LIST_PREAMBLE,
         "tests": [
@@ -409,6 +516,13 @@ PROBLEMS: list[dict] = [
             "    return False"
         ),
         "xp_reward": 60,
+        "languages": {
+            "javascript": {"harness_preamble": JS_CYCLE_PREAMBLE},
+        },
+        "signature": {
+            "params": [{"name": "head", "type": "listnode"}],
+            "returns": "bool",
+        },
         "entrypoint": "hasCycle",
         "harness_preamble": CYCLE_PREAMBLE,
         # Second argument is the index the tail loops back to; -1 means no loop.
@@ -472,6 +586,11 @@ PROBLEMS: list[dict] = [
             "    return count"
         ),
         "xp_reward": 60,
+        "languages": {"javascript": {}},
+        "signature": {
+            "params": [{"name": "grid", "type": "matrix<string>"}],
+            "returns": "int",
+        },
         "entrypoint": "numIslands",
         "tests": [
             {"visibility": "example",
@@ -515,6 +634,13 @@ PROBLEMS: list[dict] = [
             "    return 1 + max(maxDepth(root.left), maxDepth(root.right))"
         ),
         "xp_reward": 50,
+        "languages": {
+            "javascript": {"harness_preamble": JS_TREE_PREAMBLE},
+        },
+        "signature": {
+            "params": [{"name": "root", "type": "treenode"}],
+            "returns": "int",
+        },
         "entrypoint": "maxDepth",
         "harness_preamble": TREE_PREAMBLE,
         "tests": [
@@ -563,6 +689,11 @@ PROBLEMS: list[dict] = [
             "    return not stack"
         ),
         "xp_reward": 50,
+        "languages": {"javascript": {}},
+        "signature": {
+            "params": [{"name": "s", "type": "string"}],
+            "returns": "bool",
+        },
         "entrypoint": "isValid",
         "tests": [
             {"visibility": "example", "args": ["{[()]}"], "expected": True},
@@ -605,6 +736,11 @@ PROBLEMS: list[dict] = [
             "    return b"
         ),
         "xp_reward": 50,
+        "languages": {"javascript": {}},
+        "signature": {
+            "params": [{"name": "n", "type": "int"}],
+            "returns": "int",
+        },
         "entrypoint": "climbStairs",
         "tests": [
             {"visibility": "example", "args": [5], "expected": 8},
@@ -651,6 +787,11 @@ PROBLEMS: list[dict] = [
             "    return -1 if dp[amount] == float('inf') else dp[amount]"
         ),
         "xp_reward": 80,
+        "languages": {"javascript": {}},
+        "signature": {
+            "params": [{"name": "coins", "type": "list<int>"}, {"name": "amount", "type": "int"}],
+            "returns": "int",
+        },
         "entrypoint": "coinChange",
         "tests": [
             {"visibility": "example", "args": [[1, 5, 6, 9], 11], "expected": 2},
