@@ -8,6 +8,8 @@ from datetime import timedelta
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.judge.grade import grade
 from app.judge.harness import build_program
@@ -242,13 +244,24 @@ async def test_settle_is_idempotent(judge: Judge) -> None:
     assert after["progress"]["total_xp"] == xp_after_first_settle
 
 
-async def test_an_ungraded_problem_still_settles_inline(judge: Judge) -> None:
-    """The SQL problem has no runner yet; it keeps the old honour system."""
-    accepted = await judge.submit("second-highest-salary", "SELECT 1;")
-    assert accepted["status"] == "passed"
+async def test_an_ungraded_problem_still_settles_inline(judge: Judge, db: AsyncSession) -> None:
+    """A problem with no test rig keeps the honour system.
+
+    Nothing in the catalogue is ungraded any more — SQL was the last one and it
+    has a runner now — so the case is built here rather than borrowed. The path
+    is still reachable: it is what a problem looks like before its cases exist.
+    """
+    from app.models import Problem
+
+    problem = await db.scalar(select(Problem).where(Problem.slug == "two-sum"))
+    problem.graded = False
+    await db.commit()
+
+    accepted = await judge.submit("two-sum", "trust me")
+    assert accepted["status"] == "passed", "settled inline, without ever reaching a worker"
     body = await judge.result(accepted["submission_id"])
     assert body["status"] == "passed"
-    assert body["xp_awarded"] == 120
+    assert body["xp_awarded"] == problem.xp_reward * 2
 
 
 # ---- the runners themselves -------------------------------------------------

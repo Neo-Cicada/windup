@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -46,6 +46,8 @@ class Problem(UUIDMixin, TimestampMixin, Base):
     example_input: Mapped[str] = mapped_column(Text, default="", nullable=False)
     example_output: Mapped[str] = mapped_column(Text, default="", nullable=False)
 
+    # The language the workbench opens on, and what a submission that names no
+    # language is judged as. What a toy may *choose* lives in `languages`.
     language: Mapped[str] = mapped_column(String(24), default="python", nullable=False)
     starter_code: Mapped[str] = mapped_column(Text, default="", nullable=False)
 
@@ -56,6 +58,11 @@ class Problem(UUIDMixin, TimestampMixin, Base):
     # argument list, which is what lets linked-list-cycle fold two JSON values
     # (the marbles, and the index its tail loops back to) into a single node.
     entrypoint: Mapped[str] = mapped_column(String(80), default="", nullable=False)
+    # What the entrypoint takes and returns, in the small type language of
+    # `app/judge/signature.py`. Optional, because Python and JavaScript can
+    # generate a fine stub from the entrypoint name alone — but a statically
+    # typed language cannot, so a problem without one simply doesn't offer them.
+    signature_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     # Prepended before the toy's code. Defines whatever the problem needs
     # (ListNode, TreeNode) and may override _build/_dump, which default to
     # identity. This is what makes a bare `reverseList(head)` stub callable.
@@ -71,6 +78,9 @@ class Problem(UUIDMixin, TimestampMixin, Base):
         cascade="all, delete-orphan",
         order_by="ProblemTest.ordinal",
     )
+    languages: Mapped[list[ProblemLanguage]] = relationship(
+        back_populates="problem", cascade="all, delete-orphan"
+    )
 
     # Help shelf. Tier 1 ships with the problem; tiers 2-4 are gated behind chests.
     explainer: Mapped[str] = mapped_column(Text, default="", nullable=False)
@@ -82,6 +92,41 @@ class Problem(UUIDMixin, TimestampMixin, Base):
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     zone: Mapped[Zone] = relationship(back_populates="problems", lazy="selectin")
+
+
+class ProblemLanguage(UUIDMixin, TimestampMixin, Base):
+    """One language a problem can be solved in.
+
+    A toy picks the language, so a problem's bench is per-language: the stub it
+    opens to, the preamble that defines whatever structures it needs (a ListNode
+    reads very differently in Ruby than in Python), and occasionally a different
+    entrypoint name where a language's conventions demand one.
+
+    The test cases are *not* here, and that is the whole trick — `args_json` and
+    `expected_json` are plain JSON, compared on the host, so one set of cases
+    grades every language.
+    """
+
+    __tablename__ = "problem_languages"
+    __table_args__ = (
+        UniqueConstraint("problem_id", "language", name="uq_problem_languages_problem_language"),
+    )
+
+    problem_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("problems.id", ondelete="CASCADE"), index=True
+    )
+    language: Mapped[str] = mapped_column(String(24), nullable=False)
+    # False retires a bench without losing what was authored for it.
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # All three fall back to the problem's own when null/blank.
+    entrypoint: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    # Null means "generate it from the signature" — which is what keeps eight
+    # languages across the catalogue from being hundreds of hand-written stubs.
+    starter_code: Mapped[str | None] = mapped_column(Text, nullable=True)
+    harness_preamble: Mapped[str] = mapped_column(Text, default="", nullable=False)
+
+    problem: Mapped[Problem] = relationship(back_populates="languages")
 
 
 class ProblemTest(UUIDMixin, TimestampMixin, Base):

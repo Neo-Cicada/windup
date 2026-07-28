@@ -81,17 +81,45 @@ class TestCaseOut(BaseModel):
     expected: object
 
 
+class LanguageOut(BaseModel):
+    """A language this deployment offers, for the workbench's picker."""
+
+    slug: str
+    label: str
+    extension: str
+    runs_in_browser: bool
+
+
+class ProblemLanguageOut(BaseModel):
+    """One bench: everything needed to open, run and submit in one language.
+
+    The test cases are *not* in here — they are the same for every language,
+    because they are plain JSON compared on the host.
+    """
+
+    language: str
+    label: str
+    runs_in_browser: bool
+    entrypoint: str
+    starter_code: str
+    # The browser needs the adapters to run the examples locally; they define
+    # ListNode and friends, and give nothing away that the prompt doesn't.
+    harness_preamble: str = ""
+
+
 class ProblemDetailOut(ProblemOut):
     prompt: str
     example_input: str
     example_output: str
+    # The language the workbench opens on. `languages` is what it may switch to.
     language: str
     starter_code: str
+    languages: list[ProblemLanguageOut] = []
     help_shelf: HelpShelfOut
     chests: ChestsOut
     unaided: bool
     unaided_bonus: int
-    # False for problems the judge can't run yet (the SQL one).
+    # False for problems with no test rig at all — they settle on the honour system.
     graded: bool = True
     entrypoint: str = ""
     harness_preamble: str = ""
@@ -117,7 +145,9 @@ class SubmissionIn(BaseModel):
     """
 
     code: str = Field(min_length=1, max_length=20000)
-    language: str = Field(default="python", max_length=24)
+    # Which bench the toy worked at. The server checks the problem actually
+    # offers it; an unset value means the problem's default language.
+    language: str | None = Field(default=None, max_length=24)
     duration_seconds: int | None = Field(default=None, ge=0, le=86_400)
     boss_session_id: UUID | None = None
 
@@ -148,6 +178,9 @@ class FailureOut(BaseModel):
 class SubmissionResultOut(BaseModel):
     submission_id: UUID
     status: SubmissionStatus
+    # Which bench judged it. Echoed back because the workbench can be at a
+    # different one by the time a verdict lands.
+    language: str = ""
     unaided: bool
     # Null until the judge has ruled — everything below is settled at once.
     xp_awarded: int | None = None

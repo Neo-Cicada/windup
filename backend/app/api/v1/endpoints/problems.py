@@ -7,6 +7,8 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import CurrentUser, DbSession
 from app.core.config import settings
+from app.judge.bench import bench_for, benches_for, default_language
+from app.judge.languages import UnknownLanguage
 from app.models import (
     ChestTier,
     Problem,
@@ -21,6 +23,7 @@ from app.schemas.academy import (
     ChestUnlockOut,
     HelpShelfOut,
     ProblemDetailOut,
+    ProblemLanguageOut,
     ProblemOut,
     SubmissionAcceptedOut,
     SubmissionIn,
@@ -42,7 +45,11 @@ CHEST_LABELS = {
 async def _get_problem(db: AsyncSession, slug: str) -> Problem:
     problem = await db.scalar(
         select(Problem)
-        .options(selectinload(Problem.zone), selectinload(Problem.tests))
+        .options(
+            selectinload(Problem.zone),
+            selectinload(Problem.tests),
+            selectinload(Problem.languages),
+        )
         .where(Problem.slug == slug)
     )
     if problem is None:
@@ -104,13 +111,26 @@ async def read_problem(slug: str, db: DbSession, user: CurrentUser) -> ProblemDe
 
     base = problem_out(problem, solved=solved is not None)
     unaided = not (chests.hint or chests.approach or chests.solution)
+    # Default first, which is the one the workbench opens on.
+    benches = benches_for(problem)
     return ProblemDetailOut(
         **base.model_dump(),
         prompt=problem.prompt,
         example_input=problem.example_input,
         example_output=problem.example_output,
-        language=problem.language,
-        starter_code=problem.starter_code,
+        language=default_language(problem),
+        starter_code=benches[0].starter_code if benches else problem.starter_code,
+        languages=[
+            ProblemLanguageOut(
+                language=bench.language,
+                label=bench.pack.label,
+                runs_in_browser=bench.pack.runs_in_browser,
+                entrypoint=bench.entrypoint,
+                starter_code=bench.starter_code,
+                harness_preamble=bench.preamble,
+            )
+            for bench in benches
+        ],
         help_shelf=HelpShelfOut(
             explainer=problem.explainer,
             hint=problem.hint if chests.hint else None,
@@ -121,10 +141,8 @@ async def read_problem(slug: str, db: DbSession, user: CurrentUser) -> ProblemDe
         unaided=unaided,
         unaided_bonus=problem.xp_reward,
         graded=problem.graded,
-        entrypoint=problem.entrypoint,
-        # The browser needs the adapters to run the examples locally; they define
-        # ListNode and friends, and give nothing away that the prompt doesn't.
-        harness_preamble=problem.harness_preamble,
+        entrypoint=benches[0].entrypoint if benches else problem.entrypoint,
+        harness_preamble=benches[0].preamble if benches else problem.harness_preamble,
         example_tests=[
             TestCaseOut(
                 ordinal=t.ordinal,
@@ -200,6 +218,19 @@ async def submit_problem(
     chests = await _chests(db, user.id, problem.id)
     unaided = not (chests.hint or chests.approach or chests.solution)
 
+    # Which bench the code was written at decides which interpreter judges it, so
+    # a language the problem doesn't offer is refused here rather than becoming a
+    # baffling verdict later. An ungraded problem has no bench to check against —
+    # nothing is going to run it.
+    language = payload.language or problem.language
+    if problem.graded:
+        try:
+            language = bench_for(problem, payload.language).language
+        except UnknownLanguage as unknown:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(unknown)
+            ) from unknown
+
     in_flight = int(
         await db.scalar(
             select(func.count())
@@ -222,7 +253,7 @@ async def submit_problem(
         problem_id=problem.id,
         boss_session_id=payload.boss_session_id,
         code=payload.code,
-        language=payload.language or problem.language,
+        language=language,
         status=SubmissionStatus.PENDING,
         unaided=unaided,
         duration_seconds=payload.duration_seconds,

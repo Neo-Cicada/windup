@@ -39,11 +39,17 @@ async def test_hidden_test_cases_never_reach_the_client(
         # (Substring-searching the payload gives false positives both ways — a
         # hidden case can share an answer with a visible one, and an argument
         # list like `[[]]` appears incidentally inside the harness preamble.)
-        shipped = {
-            (json.dumps(t["args"]), json.dumps(t["expected"])) for t in body["example_tests"]
-        }
-        visible = {(json.dumps(t["args"]), json.dumps(t["expected"])) for t in examples}
-        secret = {(json.dumps(t["args"]), json.dumps(t["expected"])) for t in hidden}
+        # sort_keys because a case whose args hold an object comes back from
+        # JSONB in whatever key order Postgres felt like.
+        def key(case):
+            return (
+                json.dumps(case["args"], sort_keys=True),
+                json.dumps(case["expected"], sort_keys=True),
+            )
+
+        shipped = {key(t) for t in body["example_tests"]}
+        visible = {key(t) for t in examples}
+        secret = {key(t) for t in hidden}
 
         assert shipped == visible, f"{spec['slug']}: shipped cases are not the visible examples"
         assert not (shipped & secret), f"{spec['slug']}: a hidden case was shipped"

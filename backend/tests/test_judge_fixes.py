@@ -163,7 +163,7 @@ def test_a_keyword_entrypoint_is_rejected(entrypoint: str) -> None:
 
 def test_a_normal_entrypoint_is_accepted() -> None:
     program = build_program(entrypoint="twoSum", preamble="", code="def twoSum(a, b): return []")
-    assert "twoSum(*_build(" in program
+    assert "twoSum(*_build(" in program.source
 
 
 # ---- the driver's report cannot be overwritten ------------------------------

@@ -96,17 +96,36 @@ export type TestCase = {
   expected: unknown;
 };
 
+/**
+ * One bench: everything needed to open, run and submit in a single language.
+ *
+ * The example cases are deliberately not in here. They are the same whatever
+ * you solve in — plain JSON, compared on the server — so one set of them grades
+ * every language.
+ */
+export type ProblemLanguage = {
+  language: string;
+  label: string;
+  /** Whether Run can execute this language locally. Submit always works. */
+  runs_in_browser: boolean;
+  entrypoint: string;
+  starter_code: string;
+  harness_preamble: string;
+};
+
 export type ProblemDetail = Problem & {
   prompt: string;
   example_input: string;
   example_output: string;
+  /** The bench the workbench opens on; `languages` is what it may switch to. */
   language: string;
   starter_code: string;
+  languages: ProblemLanguage[];
   help_shelf: HelpShelf;
   chests: Chests;
   unaided: boolean;
   unaided_bonus: number;
-  /** false for problems the judge can't run yet — the SQL one. */
+  /** false for problems with no test rig at all — they settle on the honour system. */
   graded: boolean;
   entrypoint: string;
   harness_preamble: string;
@@ -154,6 +173,8 @@ export type SubmissionFailure = {
 export type SubmissionResult = {
   submission_id: string;
   status: SubmissionStatus;
+  /** Which bench judged it — the workbench may be at a different one by now. */
+  language: string;
   unaided: boolean;
   /** null until the judge has ruled; everything below lands at once. */
   xp_awarded: number | null;

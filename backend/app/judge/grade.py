@@ -118,11 +118,16 @@ def grade(
 
 
 def _why_missing(run: RunResult) -> str:
-    """Explain a case the guest never reported on."""
+    """Explain a case the guest never reported on.
+
+    What the language said outranks how the host classified it: "SyntaxError:
+    invalid syntax" is something a toy can act on, where "exited with status 1"
+    and a wasm backtrace are not.
+    """
     if run.timed_out:
         return "ran out of winding before this case finished"
-    if run.fatal:
-        return run.fatal
     if run.stderr.strip():
         return run.stderr.strip().splitlines()[-1][:400]
+    if run.fatal:
+        return run.fatal
     return "the toy never reported on this case"

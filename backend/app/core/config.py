@@ -46,12 +46,28 @@ class Settings(BaseSettings):
     JUDGE_RUNNER: str = "wasm"  # "wasm" | "subprocess"
     # CPython built for WASI. Fetched by scripts/fetch_python_wasm.sh.
     JUDGE_WASM_PATH: str = "vendor/python.wasm"
+    # Where every other language's WASI build lives, fetched by
+    # scripts/fetch_language_wasm.sh.
+    JUDGE_WASM_DIR: str = "vendor"
+    # The languages this deployment actually offers, in the order the workbench
+    # lists them. A pack can be implemented and left out of here — that is what
+    # a deployment that hasn't fetched an artifact yet looks like.
+    JUDGE_LANGUAGES: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["python", "javascript", "ruby", "php", "sql", "cpp", "rust", "go"]
+    )
     # Fuel is an instruction counter, not a clock. Measured on the seeded
     # catalogue: interpreter startup burns 0.24G, the heaviest problem (islands
     # on a 200x200 grid) 1.7G, and this machine runs ~7G/sec. 8G is ~5x the
     # worst real solve and trips an infinite loop in about a second.
     JUDGE_FUEL: int = 8_000_000_000
     JUDGE_MEMORY_MB: int = 256
+    # C++, Rust and Go are built before they are run. The compiler is the one
+    # place untrusted input touches the host, so it gets a clock and a size cap
+    # of its own. Measured: clang ~1s, rustc ~1s, TinyGo ~3s.
+    JUDGE_COMPILE_TIMEOUT_SECONDS: int = 30
+    JUDGE_COMPILE_MAX_OUTPUT_MB: int = 64
+    # Where the compiled-language toolchains live, if not on PATH.
+    JUDGE_TOOLCHAIN_DIR: str = "vendor"
     # Belt-and-braces wall clock, in case a runner stalls somewhere fuel can't
     # see (a blocking host call). Fuel is the primary cap.
     JUDGE_TIMEOUT_SECONDS: int = 15
@@ -69,11 +85,11 @@ class Settings(BaseSettings):
     # A worker seen within this window counts as alive.
     JUDGE_LIVENESS_WINDOW_SECONDS: int = 60
 
-    @field_validator("CORS_ORIGINS", mode="before")
+    @field_validator("CORS_ORIGINS", "JUDGE_LANGUAGES", mode="before")
     @classmethod
-    def _split_origins(cls, v: object) -> object:
+    def _split_list(cls, v: object) -> object:
         if isinstance(v, str):
-            return [origin.strip() for origin in v.split(",") if origin.strip()]
+            return [item.strip() for item in v.split(",") if item.strip()]
         return v
 
     @model_validator(mode="after")

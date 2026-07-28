@@ -1,7 +1,7 @@
 "use client";
 
 import { FREDOKA, MONO } from "./data";
-import type { RunCaseResult } from "@/lib/pyodide";
+import type { RunCaseResult } from "@/lib/runners";
 import type { SubmissionResult } from "@/lib/types";
 
 const codeBlock = {

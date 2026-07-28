@@ -3,13 +3,18 @@
 import type { ReactNode } from "react";
 import { FREDOKA, MONO, difficultyTone } from "../data";
 import { LocalRunResults, SubmissionResults } from "../TestResults";
-import type { RunCaseResult } from "@/lib/pyodide";
+import type { RunCaseResult } from "@/lib/runners";
 import type { ChestTier, ProblemDetail, SubmissionResult } from "@/lib/types";
 
 type Props = {
   problem: ProblemDetail;
   code: string;
   onCodeChange: (code: string) => void;
+  /** The bench the toy is working at. One of `problem.languages`. */
+  language: string;
+  onLanguageChange: (language: string) => void;
+  /** Whether Run can try this language here. Submit is unaffected either way. */
+  canRun: boolean;
   /** The tier currently being opened, so its chest can show a pending state. */
   unlocking: ChestTier | null;
   submitting: boolean;
@@ -39,7 +44,9 @@ const codeBlock = {
   margin: 0,
 };
 
-const INDENT = "    "; // four spaces — the problems are Python
+// Four spaces whatever the language. Python is the one where indentation *is*
+// the syntax, and a tab-width argument is not worth a per-language setting.
+const INDENT = "    ";
 
 const kbd = {
   fontFamily: MONO,
@@ -145,12 +152,15 @@ function OpenedChest({ tone, accent, title, children }: { tone: { bg: string; te
   );
 }
 
-export function ProblemView({ problem, code, onCodeChange, unlocking, submitting, running, localResults, result, error, onUnlock, onRun, onSubmit }: Props) {
+export function ProblemView({ problem, code, onCodeChange, language, onLanguageChange, canRun, unlocking, submitting, running, localResults, result, error, onUnlock, onRun, onSubmit }: Props) {
   const { chests, help_shelf: help } = problem;
   const tone = difficultyTone(problem.difficulty);
   const busy = submitting || running;
-  // The SQL problem has no runner yet — nothing to try locally, nothing graded.
-  const canRunLocally = problem.graded && problem.example_tests.length > 0;
+  // An ungraded problem has no cases to try, and not every language can be run
+  // here — the ones that can't are Submit-only, which grades just the same.
+  const canRunLocally = problem.graded && problem.example_tests.length > 0 && canRun;
+  const bench = problem.languages.find((b) => b.language === language) ?? null;
+  const label = bench?.label ?? language;
 
   return (
     <div data-screen-label="Problem View" style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 22, maxWidth: 1180, margin: "0 auto", alignItems: "start" }} className="acad-problem">
@@ -190,16 +200,52 @@ export function ProblemView({ problem, code, onCodeChange, unlocking, submitting
         </div>
 
         <div style={{ ...card, padding: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
             <h2 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 17, margin: 0 }}>Your Workbench</h2>
-            <span style={{ fontSize: 11, fontWeight: 800, color: "#9B7B5B", textTransform: "capitalize" }}>{problem.language}</span>
+            {problem.languages.length > 1 ? (
+              <div role="group" aria-label="Language" style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {problem.languages.map((option) => {
+                  const picked = option.language === language;
+                  return (
+                    <button
+                      key={option.language}
+                      className="tap"
+                      onClick={() => onLanguageChange(option.language)}
+                      disabled={busy || picked}
+                      aria-pressed={picked}
+                      title={
+                        option.runs_in_browser
+                          ? `Solve in ${option.label} — Run tries it right here`
+                          : `Solve in ${option.label} — Submit to have Sprocket try it`
+                      }
+                      style={{
+                        border: "2.5px solid #2E2620",
+                        borderRadius: 12,
+                        background: picked ? "#F7C948" : "#FBF4E4",
+                        color: "#2E2620",
+                        fontFamily: FREDOKA,
+                        fontWeight: 700,
+                        fontSize: 12,
+                        padding: "5px 11px",
+                        boxShadow: picked ? "0 3px 0 #2E2620" : "none",
+                        opacity: busy && !picked ? 0.6 : 1,
+                      }}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <span style={{ fontSize: 11, fontWeight: 800, color: "#9B7B5B", textTransform: "capitalize" }}>{label}</span>
+            )}
           </div>
           <textarea
             value={code}
             onChange={(e) => onCodeChange(e.target.value)}
             onKeyDown={handleCodeKeyDown}
             spellCheck={false}
-            aria-label={`${problem.language} workbench for ${problem.title}`}
+            aria-label={`${label} workbench for ${problem.title}`}
             // Tab indents here rather than moving on; Escape leaves the box.
             aria-describedby="workbench-keys"
             style={{
@@ -261,8 +307,8 @@ export function ProblemView({ problem, code, onCodeChange, unlocking, submitting
             </p>
           ) : (
             <p style={{ margin: "10px 0 0", fontSize: 11.5, color: "#9B7B5B", fontWeight: 700 }}>
-              Sprocket hasn&apos;t built a test rig for {problem.language.toUpperCase()} yet — this
-              one still runs on the honour system.
+              Sprocket hasn&apos;t built a test rig for {label.toUpperCase()} yet — this one still
+              runs on the honour system.
             </p>
           )}
 

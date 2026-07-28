@@ -10,6 +10,7 @@ const POLL_CEILING_MS = 2_000;
 export const PENDING_RESULT: SubmissionResult = {
   submission_id: "",
   status: "pending",
+  language: "",
   unaided: true,
   xp_awarded: null,
   coins_awarded: null,

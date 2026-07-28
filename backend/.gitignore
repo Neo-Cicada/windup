@@ -1,5 +1,6 @@
 .venv/
-# CPython-WASI build for the judge — 20MB, fetched by scripts/fetch_python_wasm.sh
+# Every language's WASI build, and the compiled languages' toolchains.
+# Fetched by scripts/fetch_language_wasm.sh and scripts/fetch_toolchains.sh.
 vendor/
 __pycache__/
 *.py[cod]

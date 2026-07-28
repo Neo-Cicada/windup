@@ -7,14 +7,34 @@ import { useAcademy } from "@/components/academy/AcademyProvider";
 import { clearDraft, readDraft, writeDraft } from "@/components/academy/drafts";
 import { PENDING_RESULT, pollForVerdict } from "@/components/academy/pollForVerdict";
 import { api, errorMessage, post } from "@/lib/api";
-import { runExamples, type RunCaseResult } from "@/lib/pyodide";
+import { canRunLocally, runExamples, type RunCaseResult } from "@/lib/runners";
 import type {
   ChestTier,
   ChestUnlockResult,
   ProblemDetail,
+  ProblemLanguage,
   SubmissionAccepted,
   SubmissionResult,
 } from "@/lib/types";
+
+/**
+ * The bench for one language, or the problem's own fields.
+ *
+ * An ungraded problem ships no benches at all, which is why this falls back
+ * rather than assuming the list has something in it.
+ */
+function benchFor(problem: ProblemDetail, language: string): ProblemLanguage {
+  return (
+    problem.languages.find((bench) => bench.language === language) ?? {
+      language: problem.language,
+      label: problem.language,
+      runs_in_browser: false,
+      entrypoint: problem.entrypoint,
+      starter_code: problem.starter_code,
+      harness_preamble: problem.harness_preamble,
+    }
+  );
+}
 
 export function ProblemRoute({ slug }: { slug: string }) {
   const { boss, dashboard, streak, burst, say } = useAcademy();
@@ -22,6 +42,7 @@ export function ProblemRoute({ slug }: { slug: string }) {
   const [problem, setProblem] = useState<ProblemDetail | null>(null);
   const [loadError, setLoadError] = useState<{ slug: string; message: string } | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [language, setLanguage] = useState("");
   const [code, setCode] = useState("");
   const [unlocking, setUnlocking] = useState<ChestTier | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -42,8 +63,10 @@ export function ProblemRoute({ slug }: { slug: string }) {
       .then((detail) => {
         if (cancelled) return;
         setProblem(detail);
+        // The problem's own language is the bench it opens on; the picker moves it.
+        setLanguage(detail.language);
         // Whatever was half-written when the toy wandered off, else the starter code.
-        setCode(readDraft(slug) ?? detail.starter_code);
+        setCode(readDraft(slug, detail.language) ?? detail.starter_code);
         // Results belong to the problem that produced them.
         setLocalResults(null);
         setSubmitResult(null);
@@ -58,7 +81,19 @@ export function ProblemRoute({ slug }: { slug: string }) {
 
   function changeCode(next: string) {
     setCode(next);
-    writeDraft(slug, next);
+    writeDraft(slug, language, next);
+  }
+
+  /** Move to another bench, keeping whatever was written at this one. */
+  function changeLanguage(next: string) {
+    if (problem === null || next === language) return;
+    writeDraft(slug, language, code);
+    setLanguage(next);
+    setCode(readDraft(slug, next) ?? benchFor(problem, next).starter_code);
+    // Results belong to the language that produced them.
+    setLocalResults(null);
+    setSubmitResult(null);
+    setActionError(null);
   }
 
   function reloadProblem() {
@@ -98,10 +133,12 @@ export function ProblemRoute({ slug }: { slug: string }) {
     setActionError(null);
     setSubmitResult(null);
     try {
+      const bench = benchFor(problem, language);
       const results = await runExamples({
         code,
-        entrypoint: problem.entrypoint,
-        preamble: problem.harness_preamble,
+        language,
+        entrypoint: bench.entrypoint,
+        preamble: bench.harness_preamble,
         cases: problem.example_tests,
       });
       setLocalResults(results);
@@ -138,7 +175,8 @@ export function ProblemRoute({ slug }: { slug: string }) {
     try {
       const accepted = await post<SubmissionAccepted>(`/problems/${problem.slug}/submit`, {
         code,
-        language: problem.language,
+        // Which bench this was written at decides which interpreter judges it.
+        language,
         // Tagging the submission is what lets a boss round actually clear.
         boss_session_id: boss.session?.status === "running" ? boss.session.id : null,
       });
@@ -159,8 +197,9 @@ export function ProblemRoute({ slug }: { slug: string }) {
       burst(verdict.confetti);
       if (verdict.status === "passed") {
         setProblem((p) => (p === null ? p : { ...p, solved: true }));
-        // Reopening a solved problem should show the code that solved it, not a stale draft.
-        clearDraft(problem.slug);
+        // Reopening a solved problem should show the code that solved it, not a stale
+        // draft. Only this bench's draft — the other languages are still unsolved work.
+        clearDraft(problem.slug, verdict.language || language);
       }
       dashboard.reload();
       streak.reload();
@@ -181,6 +220,9 @@ export function ProblemRoute({ slug }: { slug: string }) {
         problem={problem}
         code={code}
         onCodeChange={changeCode}
+        language={language}
+        onLanguageChange={changeLanguage}
+        canRun={canRunLocally(language)}
         unlocking={unlocking}
         submitting={submitting}
         running={running}

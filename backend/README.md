@@ -94,9 +94,10 @@ except signup, login, refresh, and `/health`.
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/problems` | List; filter by `zone`, `difficulty` |
-| `GET` | `/problems/{slug}` | Detail. **Locked tiers come back as `null`** — the server never leaks a chest you haven't opened |
+| `GET` | `/problems/{slug}` | Detail, including a bench per language it can be solved in. **Locked tiers come back as `null`** — the server never leaks a chest you haven't opened |
+| `GET` | `/languages` | What this deployment can judge |
 | `POST` | `/problems/{slug}/chests/{tier}` | Open `hint` \| `approach` \| `solution`; forfeits the unaided bonus |
-| `POST` | `/problems/{slug}/submit` | Queue the code for judging. **202**, returns a submission id — it does not run anything |
+| `POST` | `/problems/{slug}/submit` | Queue the code for judging. **202**, returns a submission id — it does not run anything. A language the problem doesn't offer is a **400** |
 | `GET` | `/submissions/{id}` | Poll for the verdict. Verdict fields are `null` until the judge has ruled |
 
 Scoring matches the frontend: an unaided solve pays double the problem's reward
@@ -169,7 +170,11 @@ backend/
 - **ChestUnlock**: which tiers a toy has opened per problem — this is what makes a
   solve "aided"
 - **ProblemTest**: the graded cases. `example` ones ship to the client for the
-  in-browser Run button; `hidden` ones never leave the server
+  in-browser Run button; `hidden` ones never leave the server. Shared by every
+  language a problem offers
+- **ProblemLanguage**: one bench — the stub, preamble and entrypoint for one
+  language of one problem. Absent for the problem's own `language`, which needs
+  no row
 - **Submission**: every submit, its place in the judge queue, its verdict, and the
   charge it paid out. Doubles as the queue table
 - **DailyQuest**: today's three cards
@@ -183,10 +188,15 @@ Submitted code is executed, and the server decides whether it passed. Two
 processes are involved and neither of them is the one serving requests:
 
 ```bash
-./scripts/fetch_python_wasm.sh            # once: the CPython-WASI build (20MB, gitignored)
+./scripts/fetch_language_wasm.sh          # once: every language's WASI build (gitignored)
+./scripts/fetch_toolchains.sh             # once: the C++/Rust/Go compilers, if you want them
 uv run python -m app.judge.worker         # the judge; run as many as you need
 uv run python -m app.judge.worker --once  # drain the queue and exit
 ```
+
+Only worker hosts need any of that — the API compiles and runs nothing. A
+language whose artifact or toolchain is missing should be left out of
+`JUDGE_LANGUAGES`; a worker refuses to start rather than discover it later.
 
 `POST /submit` validates and inserts a `pending` submission, then returns. Workers
 claim rows with `FOR UPDATE SKIP LOCKED` — which is why this needs no broker beyond
@@ -196,15 +206,22 @@ not the event loop serving everyone else.
 
 `app/judge/`:
 
-- `harness.py` assembles `default adapters + the problem's preamble + the toy's
+- `languages/*.py` assemble `default adapters + the problem's preamble + the toy's
   code + a driver`. Every problem is called the same way, `_dump(entrypoint(*_build(args)))`,
   so nothing needs per-problem branching; a problem that needs a `ListNode` defines
-  it, and overrides `_build`/`_dump`, in its `harness_preamble`.
-- `runner.py` runs it. `WasmRunner` (default) executes CPython-on-WASI under
+  it, and overrides `_build`/`_dump`, in its `harness_preamble`. One pack per
+  language, all producing the same wire format (see below).
+- `harness.py` is what is left once assembly is per-language: the case payload in,
+  and the JSONL read back out.
+- `bench.py` answers which languages a given problem offers, and with what stub and
+  preamble. `signature.py` is the type language those stubs are generated from.
+- `runner.py` runs it. `WasmRunner` (default) executes an interpreter-on-WASI under
   wasmtime: fuel metering caps CPU, a store memory limit caps allocation, and
   because no directory is ever preopened the guest has no filesystem and no
-  sockets. `SubprocessRunner` is a development fallback that does **not** sandbox,
-  and refuses to be selected outside `ENV=development`.
+  sockets. It compiles every offered language's module at startup, so a missing
+  artifact refuses to boot with the command to fetch it rather than failing a
+  submission later. `SubprocessRunner` is a development fallback that does **not**
+  sandbox, is Python-only, and refuses to be selected outside `ENV=development`.
 - `grade.py` compares. **Expected values never enter the sandbox** — only arguments
   go in, and the host does the comparison. Submitted code shares a process with the
   driver and can print whatever it likes, but with no expected values in reach the
@@ -223,12 +240,83 @@ passing run exists: two unsettled passing runs would otherwise each defer to the
 other and neither would pay.
 
 Tuning lives in `app/core/config.py` as `JUDGE_*` settings, not as literals.
-`JUDGE_FUEL` is an instruction budget, not a clock: interpreter startup burns
+`JUDGE_FUEL` is an instruction budget, not a clock: CPython's startup burns
 0.24G, the heaviest seeded problem 1.7G, and the default 8G trips a runaway loop
-in about half a second.
+in about half a second. It is a *default* — a pack whose interpreter is cheaper
+sets its own, and QuickJS does (3.1M startup, 3G budget, runaway in ~170ms).
 
-A problem with `graded=False` (the SQL one — there is no SQL runner yet) skips the
-judge and settles inline on the old honour system.
+A problem with `graded=False` skips the judge and settles inline on the honour
+system. Nothing in the seeded catalogue needs that today.
+
+### More than one language
+
+| language | interpreter | browser Run | notes |
+| --- | --- | --- | --- |
+| Python | CPython-WASI | Pyodide | the default; 8G fuel |
+| JavaScript | QuickJS-NG-WASI | a plain Worker, no download | 3G fuel; `-C` forces a classic script so a preamble may redefine the adapters |
+| Ruby | CRuby-WASI | — | 6G fuel; 0.54G of it is booting the interpreter and requiring `json` |
+| PHP | php-cgi-WASI | — | the awkward one, see `languages/php.py` |
+| SQL | SQLite, inside CPython-WASI | Pyodide's bundled `sqlite3` | no artifact of its own on either side |
+| C++ | wasi-sdk clang → wasm | — | ~1s to build |
+| Rust | `rustc --target wasm32-wasip1` | — | ~1s; plain rustc, no cargo and no crates |
+| Go | TinyGo → wasm | — | ~3s, the slowest of the three |
+
+SQL is the one that isn't a function call. It has no entrypoint and no
+signature; its `harness_preamble` is the schema, each case's `args` are the rows
+to put in the tables (`{"table": ..., "rows": [[...]]}`), and `expected` is the
+result set. The pack emits a *Python* program and hands it to the Python pack,
+so the driver, the wire format and the grader are all the ones already there.
+
+No Lua: the available builds are single-maintainer rebuilds rather than a
+first-party release, and Lua ships no JSON in its standard library, so its driver
+would need a hand-written serialiser — where a bug is a wrong verdict rather than
+an error.
+
+A toy picks the language per submission, and adding one changes nothing about
+grading:
+
+- **One set of cases grades every language.** `args_json` / `expected_json` are
+  plain JSON compared on the host, so `grade.py` has no per-language code in it.
+- Every pack's driver speaks the same wire format — `{"tests":[{ordinal,args}]}`
+  in on stdin, one `{ordinal,actual,stdout,error}` JSON object per line out — so
+  the security property above is argued once, not once per language.
+- Every interpreter takes its program on **argv** (`-c`, `-e`), which is how the
+  guest keeps having no filesystem.
+- `languages/__init__.py` is the registry; `JUDGE_LANGUAGES` is what a deployment
+  offers. `GET /languages` reports the latter.
+- A problem offers its own `language` plus whatever `problem_languages` rows it
+  has. `problems.signature_json` describes the *call* — not the JSON, since
+  `_build` may fold several JSON values into one argument — and every pack
+  generates its starter stub from it. A bench row exists to override that,
+  usually with a structural preamble, because a preamble is source code and is
+  never inherited across languages.
+
+#### The compiled three
+
+C++, Rust and Go have no interpreter to hand a program to, so `compile.py`
+builds them on the host first and the sandbox instantiates *that* module. The
+compiler is the one place untrusted input touches the host, so it gets rlimits,
+a scratch directory, no network and a clock of its own; a build failure is a
+verdict carrying the compiler's own diagnostics, not a crash.
+
+They also skip JSON entirely. Parsing a payload in a statically typed language
+needs a variant type and a parser — hundreds of lines where a bug is a *wrong
+verdict* — so instead the host renders each case's arguments as **typed
+literals** straight into the source (the whole catalogue carries 346 bytes of
+arguments at most). The compiler then type-checks every call, and the only
+serialising left is the return value, whose type the signature already gave.
+
+Two things follow, and both are deliberate:
+
+- **The toy's own prints are not handed back.** WASI gives the guest no pipe and
+  no filesystem to redirect stdout into, so a `printf` lands on the result
+  stream and `parse_results` discards it as noise. Nothing grades wrongly; there
+  is simply no debugging output on the way back.
+- **They do not offer the three structural problems.** Rendering literals needs
+  to know what the raw JSON holds, which `signature.args` can express — but each
+  would still need its node type and `_build` written three more times, and
+  linked-list-cycle cannot be expressed with Rust's `Box` at all: a cyclic list
+  needs `Rc<RefCell<..>>`, a different type for the toy to write against.
 
 ## The frontend
 
