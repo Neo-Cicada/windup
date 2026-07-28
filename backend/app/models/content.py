@@ -69,8 +69,10 @@ class Problem(UUIDMixin, TimestampMixin, Base):
     harness_preamble: Mapped[str] = mapped_column(Text, default="", nullable=False)
     # False bypasses the judge entirely — the SQL problem has no Python runner.
     graded: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    # "exact" compares dumped output verbatim; "unordered" sorts first, for
-    # problems where any ordering of the answer is correct.
+    # "exact" compares dumped output verbatim; "unordered" sorts the answer
+    # first, for problems where any ordering of it is correct; "unordered_deep"
+    # sorts every list inside it too, which is what a list of *groups* needs —
+    # subsets and anagram groupings are right in any order, inside and out.
     compare_mode: Mapped[str] = mapped_column(String(16), default="exact", nullable=False)
 
     tests: Mapped[list[ProblemTest]] = relationship(

@@ -43,6 +43,20 @@ def _same(actual: Any, expected: Any) -> bool:
     return actual == expected
 
 
+def _sorted_deep(value: Any) -> Any:
+    """Every list in the value, sorted — the answer's shape, not its order.
+
+    `unordered` only sorts the outermost list, which is right for a list of
+    strings and wrong for a list of *groups*: subsets, combinations and the
+    anagram groupings are correct whichever order the groups come back in and
+    whichever order each group's own members do. Sorting by `repr` is arbitrary
+    but consistent, and consistent is all a canonical form has to be.
+    """
+    if isinstance(value, list):
+        return sorted((_sorted_deep(item) for item in value), key=repr)
+    return value
+
+
 def _matches(actual: Any, expected: Any, compare_mode: str) -> bool:
     if compare_mode == "unordered":
         # For problems where any ordering of the answer is correct. Sort both
@@ -53,6 +67,8 @@ def _matches(actual: Any, expected: Any, compare_mode: str) -> bool:
         except TypeError:
             return _same(actual, expected)
         return _same(ordered_actual, ordered_expected)
+    if compare_mode == "unordered_deep":
+        return _same(_sorted_deep(actual), _sorted_deep(expected))
     return _same(actual, expected)
 
 

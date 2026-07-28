@@ -1,8 +1,15 @@
 from httpx import AsyncClient
 
+from app.db.seed_data import PROBLEMS, ZONES
 from app.models import Progress
 from app.services.leveling import apply_xp, level_name, touch_streak
 from tests.conftest import Judge
+
+# Read off the catalogue rather than written down here. These assertions are
+# about the *endpoint* reporting what was seeded; pinning literals made adding a
+# problem to a corner look like a broken zone count.
+BUILDING_BLOCKS = next(z for z in ZONES if z["slug"] == "building-blocks")
+BUILDING_BLOCKS_TOTAL = sum(1 for p in PROBLEMS if p["zone"] == "building-blocks")
 
 
 def test_apply_xp_rolls_the_meter_like_the_frontend() -> None:
@@ -121,8 +128,8 @@ async def test_zones_report_clear_counts(
     zones = (await client.get("/api/v1/zones", headers=auth)).json()
     blocks = next(z for z in zones if z["slug"] == "building-blocks")
     assert blocks["done"] == 1
-    assert blocks["total"] == 2
-    assert blocks["pattern"] == "Arrays & Strings"
+    assert blocks["total"] == BUILDING_BLOCKS_TOTAL
+    assert blocks["pattern"] == BUILDING_BLOCKS["pattern"]
 
 
 async def test_analytics_tracks_the_week(
@@ -145,7 +152,7 @@ async def test_analytics_tracks_the_week(
     assert body["xp_this_week"] == expected_today
     assert len(body["streak"]["cells"]) == 36
     assert body["unaided_rate"] == 100
-    assert len(body["coverage"]) == 6
+    assert len(body["coverage"]) == len(ZONES)
 
 
 async def test_leaderboard_marks_you(
