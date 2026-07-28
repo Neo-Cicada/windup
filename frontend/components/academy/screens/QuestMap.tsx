@@ -18,15 +18,16 @@ export function QuestMap({ zones, openZone, problems, problemsLoading, problemsE
 
   return (
     <div data-screen-label="Quest Map" style={{ maxWidth: 1180, margin: "0 auto" }}>
-      <div style={{ background: "#F3E7CC", border: "4px solid #2E2620", borderRadius: 24, padding: "18px 22px", marginBottom: 22, display: "flex", alignItems: "center", gap: 16, boxShadow: "0 8px 0 #E0CBA0" }}>
+      <div className="acad-card" style={{ background: "#F3E7CC", border: "4px solid #2E2620", borderRadius: 24, padding: "18px 22px", marginBottom: 22, display: "flex", alignItems: "center", gap: 16, boxShadow: "0 8px 0 #E0CBA0" }}>
         <div style={{ width: 46, height: 46, flex: "none", background: "#4FB0E5", border: "3px solid #2E2620", borderRadius: 13, boxShadow: "0 4px 0 #2E2620" }} />
         <div>
-          <h1 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 24, margin: 0 }}>Explore the Playroom</h1>
+          <h1 className="acad-h1" style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 24, margin: 0 }}>Explore the Playroom</h1>
           <p style={{ margin: "2px 0 0", fontSize: 13, color: "#8B7358", fontWeight: 700 }}>Every corner is a coding pattern. Pick a toy and start fixing.</p>
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(340px,1fr))", gap: 22 }}>
+      {/* `min()` is what keeps the track from being wider than the phone it's on. */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(min(340px,100%),1fr))", gap: 22 }}>
         {zones.map((z) => {
           const pct = z.total > 0 ? Math.round((z.done / z.total) * 100) : 0;
           const open = z.slug === openZone;
@@ -74,7 +75,7 @@ export function QuestMap({ zones, openZone, problems, problemsLoading, problemsE
 
       {/* the picked corner's shelf of toys */}
       {zone && (
-        <section style={{ marginTop: 26, background: "#fff", border: "4px solid #2E2620", borderRadius: 24, padding: 24, boxShadow: "0 8px 0 #E0CBA0", animation: "pop .35s ease both" }}>
+        <section className="acad-card" style={{ marginTop: 26, background: "#fff", border: "4px solid #2E2620", borderRadius: 24, padding: 24, boxShadow: "0 8px 0 #E0CBA0", animation: "pop .35s ease both" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 13, marginBottom: 4 }}>
             <span style={{ width: 30, height: 30, flex: "none", borderRadius: 10, border: "3px solid #2E2620", background: zone.color }} />
             <h2 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 21, margin: 0 }}>{zone.name}</h2>
@@ -99,19 +100,19 @@ export function QuestMap({ zones, openZone, problems, problemsLoading, problemsE
               {problems.map((p) => {
                 const tone = difficultyTone(p.difficulty);
                 return (
-                  <div key={p.slug} style={{ display: "flex", alignItems: "center", gap: 14, background: "#FCF6E9", border: "3px solid #2E2620", borderRadius: 18, padding: "12px 15px" }}>
+                  <div key={p.slug} className="acad-list-row" style={{ display: "flex", alignItems: "center", gap: 14, background: "#FCF6E9", border: "3px solid #2E2620", borderRadius: 18, padding: "12px 15px" }}>
                     <span
                       style={{ width: 30, height: 30, flex: "none", borderRadius: 10, border: "3px solid #2E2620", background: p.solved ? "#6FBF73" : "#EFE1C2", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: "#173d19" }}
                       title={p.solved ? "Fixed" : "Still broken"}
                     >
                       {p.solved ? "✓" : ""}
                     </span>
-                    <div style={{ flex: 1, minWidth: 0, fontFamily: FREDOKA, fontWeight: 600, fontSize: 16 }}>{p.title}</div>
+                    <div className="acad-list-title" style={{ flex: 1, minWidth: 0, fontFamily: FREDOKA, fontWeight: 600, fontSize: 16 }}>{p.title}</div>
                     <span style={{ background: tone.bg, border: `2px solid ${tone.border}`, color: tone.color, fontWeight: 800, fontSize: 11, padding: "3px 10px", borderRadius: 20, textTransform: "capitalize" }}>
                       {p.difficulty}
                     </span>
                     <span style={{ fontSize: 12, fontWeight: 800, color: "#B0794A", width: 74, textAlign: "right" }}>+{p.xp_reward} charge</span>
-                    <button className="tap" onClick={() => onOpenProblem(p.slug)} style={{ border: "3px solid #2E2620", borderRadius: 13, background: "#6FBF73", color: "#173d19", fontWeight: 700, fontSize: 13, padding: "8px 15px", boxShadow: "0 4px 0 #2E2620", fontFamily: FREDOKA }}>
+                    <button className="tap acad-list-cta" onClick={() => onOpenProblem(p.slug)} style={{ border: "3px solid #2E2620", borderRadius: 13, background: "#6FBF73", color: "#173d19", fontWeight: 700, fontSize: 13, padding: "8px 15px", boxShadow: "0 4px 0 #2E2620", fontFamily: FREDOKA }}>
                       {p.solved ? "Replay" : "Fix it"}
                     </button>
                   </div>

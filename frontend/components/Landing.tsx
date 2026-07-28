@@ -28,7 +28,9 @@ function HeroAvatar() {
 /** Blue robot "Sprocket" with a spinning wind-up key. */
 function HeroSprocket() {
   return (
-    <div style={abs({ right: 40, top: 96, width: 120, height: 150, animation: "floaty2 3.4s ease-in-out infinite" })}>
+    // Hidden on the narrowest screens (see `.hero-sprocket`), where the shelf isn't
+    // wide enough for two toys to stand on it without overlapping.
+    <div className="hero-sprocket" style={abs({ right: 40, top: 96, width: 120, height: 150, animation: "floaty2 3.4s ease-in-out infinite" })}>
       <div style={abs({ bottom: -2, left: "50%", transform: "translateX(-50%)", width: 96, height: 14, background: "rgba(46,38,32,.16)", borderRadius: "50%" })} />
       <div style={abs({ top: 4, left: "50%", transform: "translateX(-50%)", width: 10, height: 20, background: "#B0794A", border: "2px solid #2E2620" })} />
       <div style={abs({ top: -6, left: "50%", transform: "translateX(-50%)", width: 15, height: 15, background: "#EF5B54", border: "3px solid #2E2620", borderRadius: "50%" })} />
@@ -71,7 +73,7 @@ export function Landing({ onLogin, onSignup }: Props) {
   return (
     <div>
       {/* NAV */}
-      <nav style={{ position: "sticky", top: 0, zIndex: 50, display: "flex", alignItems: "center", gap: 16, padding: "16px 40px", background: "rgba(243,227,195,.82)", backdropFilter: "blur(8px)", borderBottom: "3px solid #2E2620" }}>
+      <nav className="pub-nav" style={{ position: "sticky", top: 0, zIndex: 50, display: "flex", alignItems: "center", gap: 16, padding: "16px 40px", background: "rgba(243,227,195,.82)", backdropFilter: "blur(8px)", borderBottom: "3px solid #2E2620" }}>
         <LogoMark />
         <div style={{ flex: 1 }} />
         <div className="nav-links">
@@ -87,9 +89,9 @@ export function Landing({ onLogin, onSignup }: Props) {
       </nav>
 
       {/* HERO */}
-      <header className="hero-grid" style={{ maxWidth: 1180, margin: "0 auto", padding: "56px 40px 40px", display: "grid", gridTemplateColumns: "1.05fr .95fr", gap: 40, alignItems: "center" }}>
+      <header className="hero-grid pub-section" style={{ maxWidth: 1180, margin: "0 auto", padding: "56px 40px 40px", display: "grid", gridTemplateColumns: "1.05fr .95fr", gap: 40, alignItems: "center" }}>
         <div>
-          <h1 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 56, lineHeight: 1.02, margin: "0 0 18px" }}>
+          <h1 className="pub-h1" style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 56, lineHeight: 1.02, margin: "0 0 18px" }}>
             Ace your coding interview.
             <br />
             <span style={{ color: "#EF5B54" }}>One toy at a time.</span>
@@ -117,7 +119,7 @@ export function Landing({ onLogin, onSignup }: Props) {
         </div>
 
         {/* hero illustration: shelf with toys */}
-        <div style={{ position: "relative", height: 420 }}>
+        <div className="hero-art" style={{ position: "relative", height: 420 }}>
           <div style={{ position: "absolute", inset: 0, background: "#FBF4E4", border: "4px solid #2E2620", borderRadius: 28, boxShadow: "0 12px 0 #E0CBA0", overflow: "hidden" }}>
             <div style={abs({ top: -30, right: -30, width: 150, height: 150, background: "#FDF0CE", borderRadius: "50%" })} />
             <HeroAvatar />
@@ -138,8 +140,8 @@ export function Landing({ onLogin, onSignup }: Props) {
       </header>
 
       {/* STATS STRIP */}
-      <section style={{ maxWidth: 1180, margin: "0 auto", padding: "14px 40px 30px" }}>
-        <div className="stats-grid" style={{ background: "#2E2620", borderRadius: 22, padding: "26px 30px", display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 20, textAlign: "center" }}>
+      <section className="pub-section" style={{ maxWidth: 1180, margin: "0 auto", padding: "14px 40px 30px" }}>
+        <div className="stats-grid acad-card" style={{ background: "#2E2620", borderRadius: 22, padding: "26px 30px", display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 20, textAlign: "center" }}>
           {STATS.map((s) => (
             <div key={s.label}>
               <div style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 32, color: s.color }}>{s.value}</div>
@@ -150,10 +152,10 @@ export function Landing({ onLogin, onSignup }: Props) {
       </section>
 
       {/* FEATURES */}
-      <section id="feat" style={{ maxWidth: 1180, margin: "0 auto", padding: "40px 40px" }}>
-        <h2 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 38, textAlign: "center", margin: "0 0 8px" }}>Practice that feels like playtime</h2>
+      <section id="feat" className="pub-section" style={{ maxWidth: 1180, margin: "0 auto", padding: "40px 40px" }}>
+        <h2 className="pub-h2" style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 38, textAlign: "center", margin: "0 0 8px" }}>Practice that feels like playtime</h2>
         <p style={{ textAlign: "center", fontSize: 16, color: "#8B7358", fontWeight: 700, margin: "0 0 36px" }}>Every serious interview skill, wrapped in something you actually want to open.</p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))", gap: 22 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(250px,100%),1fr))", gap: 22 }}>
           {FEATURES.map((f) => (
             <div key={f.title} style={{ background: "#fff", border: "4px solid #2E2620", borderRadius: 22, padding: 24, boxShadow: "0 8px 0 #E0CBA0" }}>
               <div style={{ width: 52, height: 52, background: f.color, border: "4px solid #2E2620", borderRadius: 15, boxShadow: "0 5px 0 #2E2620" }} />
@@ -165,8 +167,8 @@ export function Landing({ onLogin, onSignup }: Props) {
       </section>
 
       {/* HOW IT WORKS */}
-      <section id="how" style={{ maxWidth: 1180, margin: "0 auto", padding: "30px 40px 50px" }}>
-        <h2 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 38, textAlign: "center", margin: "0 0 36px" }}>Three steps to Interview Ready</h2>
+      <section id="how" className="pub-section" style={{ maxWidth: 1180, margin: "0 auto", padding: "30px 40px 50px" }}>
+        <h2 className="pub-h2" style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 38, textAlign: "center", margin: "0 0 36px" }}>Three steps to Interview Ready</h2>
         <div className="steps-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 22 }}>
           {STEPS.map((s) => (
             <div key={s.n} style={{ textAlign: "center", background: "#FBF4E4", border: "4px solid #2E2620", borderRadius: 22, padding: "28px 22px", boxShadow: "0 8px 0 #E0CBA0" }}>
@@ -179,11 +181,11 @@ export function Landing({ onLogin, onSignup }: Props) {
       </section>
 
       {/* FINAL CTA */}
-      <section id="join" style={{ maxWidth: 1180, margin: "0 auto", padding: "0 40px 60px" }}>
-        <div style={{ background: "#EF5B54", border: "4px solid #2E2620", borderRadius: 28, padding: 48, textAlign: "center", boxShadow: "0 12px 0 #A9302B", position: "relative", overflow: "hidden" }}>
+      <section id="join" className="pub-section" style={{ maxWidth: 1180, margin: "0 auto", padding: "0 40px 60px" }}>
+        <div className="acad-card" style={{ background: "#EF5B54", border: "4px solid #2E2620", borderRadius: 28, padding: 48, textAlign: "center", boxShadow: "0 12px 0 #A9302B", position: "relative", overflow: "hidden" }}>
           <div style={abs({ top: -40, left: -40, width: 160, height: 160, background: "rgba(255,255,255,.12)", borderRadius: "50%" })} />
           <div style={abs({ bottom: -50, right: -30, width: 180, height: 180, background: "rgba(255,255,255,.10)", borderRadius: "50%" })} />
-          <h2 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 40, color: "#fff", margin: "0 0 12px", position: "relative" }}>The toybox is open. Come play.</h2>
+          <h2 className="pub-h2" style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 40, color: "#fff", margin: "0 0 12px", position: "relative" }}>The toybox is open. Come play.</h2>
           <p style={{ color: "#FFE3E1", fontSize: 16, fontWeight: 700, margin: "0 0 28px", position: "relative" }}>Every shelf, every quest, every boss. No batteries required.</p>
           <PushButton onClick={onSignup} bg="#F7C948" color="#2E2620" shadow="#2E2620" style={{ borderRadius: 18, fontSize: 19, padding: "16px 40px", borderWidth: 4, boxShadowY: 6, position: "relative" }}>
             Create your toy
@@ -192,7 +194,7 @@ export function Landing({ onLogin, onSignup }: Props) {
       </section>
 
       {/* FOOTER */}
-      <footer style={{ borderTop: "3px solid #2E2620", padding: "26px 40px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", fontSize: 13, fontWeight: 700, color: "#8B7358" }}>
+      <footer className="pub-footer" style={{ borderTop: "3px solid #2E2620", padding: "26px 40px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", fontSize: 13, fontWeight: 700, color: "#8B7358" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
           <div style={{ width: 30, height: 30, background: "#EF5B54", border: "3px solid #2E2620", borderRadius: 9 }} />
           <span style={{ fontFamily: FREDOKA, fontWeight: 700, color: "#3A2E27" }}>Windup Academy</span>

@@ -56,7 +56,7 @@ export function Dashboard({ toyName, traineeNo, avBody, avHead, avAccent, ready,
           <div style={{ display: "inline-block", background: "#FDECEC", border: "2px solid #EF5B54", color: "#D8443D", fontWeight: 800, fontSize: 11, padding: "4px 11px", borderRadius: 20, marginBottom: 9 }}>
             TRAINEE TOY · No. {traineeNo}
           </div>
-          <h1 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 30, margin: "0 0 4px" }}>Welcome back, {toyName}!</h1>
+          <h1 className="acad-h1" style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 30, margin: "0 0 4px" }}>Welcome back, {toyName}!</h1>
           <p style={{ margin: "0 0 16px", color: "#6B5A4A", fontSize: 14.5, maxWidth: 460 }}>{sprocketMessage}</p>
           <div style={{ maxWidth: 460 }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 800, color: "#B0794A", marginBottom: 5 }}>
@@ -82,7 +82,7 @@ export function Dashboard({ toyName, traineeNo, avBody, avHead, avAccent, ready,
       </section>
 
       {/* TODAY'S QUESTS */}
-      <section style={{ ...card, padding: "22px 24px" }}>
+      <section className="acad-card" style={{ ...card, padding: "22px 24px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
           <h2 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 21, margin: 0 }}>Today&apos;s Quests</h2>
           <span style={{ fontSize: 12, fontWeight: 800, color: "#B0794A" }}>{questsDone} / {quests.length} done</span>
@@ -94,9 +94,9 @@ export function Dashboard({ toyName, traineeNo, avBody, avHead, avAccent, ready,
             </p>
           )}
           {quests.map((q) => (
-            <div key={q.id} style={{ display: "flex", alignItems: "center", gap: 15, background: "#FCF6E9", border: "3px solid #2E2620", borderRadius: 18, padding: "12px 14px" }}>
+            <div key={q.id} className="acad-list-row" style={{ display: "flex", alignItems: "center", gap: 15, background: "#FCF6E9", border: "3px solid #2E2620", borderRadius: 18, padding: "12px 14px" }}>
               <span style={{ width: 34, height: 34, flex: "none", borderRadius: 11, border: "3px solid #2E2620", background: q.color }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="acad-list-title" style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
                   <span style={{ fontFamily: FREDOKA, fontWeight: 600, fontSize: 15.5 }}>{q.name}</span>
                   <span style={{ fontSize: 11, fontWeight: 800, color: "#9B7B5B" }}>{q.zone}</span>
@@ -106,7 +106,7 @@ export function Dashboard({ toyName, traineeNo, avBody, avHead, avAccent, ready,
                 </div>
               </div>
               <div style={{ fontSize: 12, fontWeight: 800, color: "#B0794A", width: 34, textAlign: "right" }}>{q.pct}%</div>
-              <button className="tap" onClick={() => onOpenProblem(q.slug)} style={{ border: "3px solid #2E2620", borderRadius: 13, background: q.completed ? "#D9C4A0" : "#6FBF73", color: q.completed ? "#5C4A3C" : "#173d19", fontWeight: 700, fontSize: 13, padding: "8px 15px", boxShadow: "0 4px 0 #2E2620", fontFamily: FREDOKA }}>
+              <button className="tap acad-list-cta" onClick={() => onOpenProblem(q.slug)} style={{ border: "3px solid #2E2620", borderRadius: 13, background: q.completed ? "#D9C4A0" : "#6FBF73", color: q.completed ? "#5C4A3C" : "#173d19", fontWeight: 700, fontSize: 13, padding: "8px 15px", boxShadow: "0 4px 0 #2E2620", fontFamily: FREDOKA }}>
                 {q.completed ? "Replay" : "Play"}
               </button>
             </div>
@@ -117,7 +117,7 @@ export function Dashboard({ toyName, traineeNo, avBody, avHead, avAccent, ready,
       {/* RIGHT COLUMN */}
       <section style={{ display: "flex", flexDirection: "column", gap: 22 }}>
         {/* climbing shelves */}
-        <div style={{ ...card, padding: "20px 22px" }}>
+        <div className="acad-card" style={{ ...card, padding: "20px 22px" }}>
           <h2 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 19, margin: "0 0 4px" }}>The Climbing Shelves</h2>
           <p style={{ margin: "0 0 16px", fontSize: 12, color: "#9B7B5B", fontWeight: 700 }}>Reach the top shelf to graduate.</p>
           <div style={{ position: "relative", height: 196 }}>

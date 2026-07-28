@@ -179,6 +179,12 @@ input {
   box-shadow: 0 0 0 3px #4fb0e5;
 }
 
+/* The sidebar's menu button only exists in the narrow layout, where the links
+   below it are a drawer. From the breakpoint up the drawer is always open. */
+.acad-nav-toggle {
+  display: none;
+}
+
 /* Collapse the academy's two-column layouts on narrow viewports */
 @media (max-width: 960px) {
   .acad-dash,
@@ -198,26 +204,185 @@ input {
   }
 }
 
-/* Let the whole shell scroll and shrink the sidebar on small screens */
-@media (max-width: 720px) {
+/* ---- The sidebar becomes a top bar -------------------------------------- *
+ * Below this width the nav stops being a column beside the screen and becomes
+ * a bar above it: brand and a menu button always visible, the eight links (and
+ * Sprocket's line) folded into a drawer the button opens. The bar sticks to the
+ * top so every screen stays one tap away, which is why the topbar under it gives
+ * up its own stickiness — two sticky headers would eat half a phone.            */
+@media (max-width: 900px) {
   .acad-shell {
     flex-direction: column;
   }
-  .acad-shell aside {
+  .acad-sidebar {
     width: 100% !important;
     height: auto !important;
-    position: static !important;
-    flex-direction: row !important;
-    flex-wrap: wrap !important;
-    align-items: center !important;
+    align-self: stretch !important;
+    padding: 10px 14px !important;
+    gap: 0 !important;
     border-right: 0 !important;
     border-bottom: 4px solid #2e2620 !important;
-    gap: 8px !important;
+    box-shadow: 0 6px 0 rgba(46, 38, 32, 0.06) !important;
   }
-  .acad-shell aside > div:last-child {
+  .acad-sidebar .acad-brand {
+    padding: 0 !important;
+  }
+  .acad-nav-toggle {
+    display: inline-flex;
+  }
+  .acad-nav {
     display: none !important;
   }
+  .acad-nav[data-open="true"] {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px !important;
+    padding-top: 12px;
+  }
+  .acad-sprocket {
+    display: none !important;
+  }
+  .acad-nav[data-open="true"] ~ .acad-sprocket {
+    display: block !important;
+    margin-top: 12px !important;
+  }
+
+  .acad-topbar {
+    position: static !important;
+    padding: 12px 16px !important;
+    gap: 12px !important;
+  }
+  /* One swipeable row of meters on its own line, under the title and the key. */
+  .acad-topbar-stats {
+    order: 3;
+    flex: 0 0 100% !important;
+    justify-content: flex-start !important;
+    flex-wrap: nowrap !important;
+    gap: 10px !important;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    scrollbar-width: none;
+  }
+  .acad-topbar-stats::-webkit-scrollbar {
+    display: none;
+  }
+  /* The meters no longer share this line, so the key needs its own push right. */
+  .acad-wind {
+    order: 2;
+    margin-left: auto;
+  }
+  .acad-charge-bar {
+    width: 108px !important;
+  }
+  .acad-main {
+    padding: 20px 16px 48px !important;
+  }
+}
+
+/* Two pegs and a label don't fit side by side much below this. */
+@media (max-width: 720px) {
   .acad-coverage-row {
     flex-wrap: wrap;
+    gap: 12px !important;
+  }
+  .acad-cov-label {
+    width: auto !important;
+    flex-basis: 100% !important;
+  }
+}
+
+/* ---- Phone-sized: tighten the toy chrome -------------------------------- */
+@media (max-width: 620px) {
+  .acad-card {
+    padding: 16px !important;
+    border-radius: 18px !important;
+  }
+  .acad-hero {
+    padding: 18px 16px !important;
+  }
+  .acad-h1 {
+    font-size: 22px !important;
+  }
+  .acad-topbar-title {
+    font-size: 17px !important;
+  }
+
+  /* Quest and problem rows: name beside its icon, then the pill/reward/button
+     wrap onto a second line rather than squeezing the title to nothing. */
+  .acad-list-row {
+    flex-wrap: wrap;
+    gap: 10px !important;
+  }
+  .acad-list-title {
+    flex: 1 1 calc(100% - 60px) !important;
+  }
+  .acad-list-cta {
+    margin-left: auto;
+  }
+
+  .acad-prob-head {
+    gap: 12px !important;
+  }
+  /* Only the gaps close up: the bar heights come from the API in pixels, so a
+     shorter box would just let them spill over the heading. */
+  .acad-chart {
+    gap: 6px !important;
+  }
+  .acad-podium {
+    gap: 8px !important;
+  }
+  /* A narrower badge than the desktop 170 keeps the sash two across on a phone
+     instead of one very wide badge per row. */
+  .acad-badges {
+    grid-template-columns: repeat(auto-fill, minmax(min(140px, 100%), 1fr)) !important;
+    gap: 12px !important;
+  }
+  .acad-boss {
+    padding: 22px 14px !important;
+    border-radius: 20px !important;
+  }
+  .acad-boss-clock {
+    padding: 14px 20px !important;
+  }
+  .acad-boss-time {
+    font-size: 42px !important;
+  }
+  .acad-sash-row {
+    padding: 0 6px !important;
+    gap: 12px !important;
+    flex-wrap: wrap;
+  }
+
+  /* Landing and auth */
+  .pub-nav {
+    padding: 12px 14px !important;
+    gap: 10px !important;
+    flex-wrap: wrap;
+  }
+  .pub-section {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+  .pub-h1 {
+    font-size: 34px !important;
+  }
+  .pub-h2 {
+    font-size: 26px !important;
+  }
+  .hero-art {
+    height: 320px !important;
+  }
+  .pub-footer {
+    padding: 20px 16px !important;
+  }
+  .auth-form-pane {
+    padding: 32px 18px !important;
+  }
+}
+
+/* The hero shelf isn't wide enough for two toys to stand on it down here. */
+@media (max-width: 460px) {
+  .hero-sprocket {
+    display: none !important;
   }
 }
