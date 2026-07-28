@@ -166,7 +166,9 @@ backend/
 ## Data model
 
 - **User** → **Progress** (1-1): charge, shelf level, streak, coins, counters
-- **Zone** → **Problem** (1-n): a toy corner and its problems, help text on the problem
+- **Zone** → **Problem** (1-n): a toy corner and its problems, help text on the problem.
+  The seeded catalogue is 19 corners of 5 problems each, one corner per topic on
+  the NeetCode roadmap plus Toy Kitchen for SQL, in roadmap order
 - **ChestUnlock**: which tiers a toy has opened per problem — this is what makes a
   solve "aided"
 - **ProblemTest**: the graded cases. `example` ones ship to the client for the
@@ -302,7 +304,7 @@ verdict carrying the compiler's own diagnostics, not a crash.
 They also skip JSON entirely. Parsing a payload in a statically typed language
 needs a variant type and a parser — hundreds of lines where a bug is a *wrong
 verdict* — so instead the host renders each case's arguments as **typed
-literals** straight into the source (the whole catalogue carries 346 bytes of
+literals** straight into the source (the whole catalogue carries 135 bytes of
 arguments at most). The compiler then type-checks every call, and the only
 serialising left is the return value, whose type the signature already gave.
 
@@ -312,11 +314,14 @@ Two things follow, and both are deliberate:
   no filesystem to redirect stdout into, so a `printf` lands on the result
   stream and `parse_results` discards it as noise. Nothing grades wrongly; there
   is simply no debugging output on the way back.
-- **They do not offer the three structural problems.** Rendering literals needs
-  to know what the raw JSON holds, which `signature.args` can express — but each
-  would still need its node type and `_build` written three more times, and
-  linked-list-cycle cannot be expressed with Rust's `Box` at all: a cyclic list
-  needs `Rc<RefCell<..>>`, a different type for the toy to write against.
+- **They do not offer the structural problems** — the ten in Marble Run and
+  Branching Mobile that hand the entrypoint a chute or a mobile. Rendering
+  literals needs to know what the raw JSON holds, which `signature.args` can
+  express, but `call_for` can only feed a *single* argument through `_build`, so
+  anything taking two lists is out on its own. Each would also need its node type
+  and `_build` written three more times, and linked-list-cycle cannot be
+  expressed with Rust's `Box` at all: a cyclic list needs `Rc<RefCell<..>>`, a
+  different type for the toy to write against.
 
 ## The frontend
 
