@@ -58,7 +58,7 @@ export function Profile({ user, saving, flash, error, onSave, onLogout, onEdit }
   return (
     <div data-screen-label="Profile" style={{ maxWidth: 1060, margin: "0 auto" }}>
       {/* profile banner */}
-      <div style={{ background: "#4FB0E5", border: "4px solid #2E2620", borderRadius: 24, padding: "20px 26px", marginBottom: 24, display: "flex", alignItems: "center", gap: 16, boxShadow: "0 8px 0 #2C7CB0" }}>
+      <div className="acad-card" style={{ background: "#4FB0E5", border: "4px solid #2E2620", borderRadius: 24, padding: "20px 26px", marginBottom: 24, display: "flex", alignItems: "center", gap: 16, boxShadow: "0 8px 0 #2C7CB0" }}>
         <div style={{ width: 52, height: 52, flex: "none", background: user.avatar.head, border: "3px solid #2E2620", borderRadius: 14, boxShadow: "0 4px 0 #2E2620", position: "relative" }}>
           <span style={{ position: "absolute", top: 14, left: 12, width: 7, height: 7, background: "#2E2620", borderRadius: "50%" }} />
           <span style={{ position: "absolute", top: 14, right: 12, width: 7, height: 7, background: "#2E2620", borderRadius: "50%" }} />
@@ -71,7 +71,7 @@ export function Profile({ user, saving, flash, error, onSave, onLogout, onEdit }
       </div>
 
       {/* account panel */}
-      <section style={{ background: "#fff", border: "4px solid #2E2620", borderRadius: 24, padding: 26, boxShadow: "0 8px 0 #E0CBA0" }}>
+      <section className="acad-card" style={{ background: "#fff", border: "4px solid #2E2620", borderRadius: 24, padding: 26, boxShadow: "0 8px 0 #E0CBA0" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
           <div style={{ width: 34, height: 34, flex: "none", background: "#4FB0E5", border: "3px solid #2E2620", borderRadius: 10, boxShadow: "0 3px 0 #2E2620" }} />
           <h2 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 20, margin: 0 }}>Account</h2>

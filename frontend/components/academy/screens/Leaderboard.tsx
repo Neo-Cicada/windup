@@ -9,7 +9,7 @@ export function Leaderboard({ data }: Props) {
   return (
     <div data-screen-label="Leaderboard" style={{ maxWidth: 920, margin: "0 auto" }}>
       <div style={{ textAlign: "center", marginBottom: 26 }}>
-        <h1 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 28, margin: 0 }}>The Shelf of Fame</h1>
+        <h1 className="acad-h1" style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 28, margin: 0 }}>The Shelf of Fame</h1>
         <p style={{ margin: "4px 0 0", fontSize: 13, color: "#8B7358", fontWeight: 700 }}>
           The most wound-up toys in the playroom
           {data.your_rank !== null ? ` — you're sitting at #${data.your_rank}.` : "."}
@@ -19,11 +19,11 @@ export function Leaderboard({ data }: Props) {
       {/* podium */}
       {podium.length > 0 && (
         <>
-          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 16, marginBottom: 30 }}>
+          <div className="acad-podium" style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 16, marginBottom: 30 }}>
             {podium.map((p) => (
-              <div key={p.rank} style={{ flex: 1, maxWidth: 200, display: "flex", flexDirection: "column", alignItems: "center" }}>
-                <div style={{ width: 56, height: 56, borderRadius: 16, border: "4px solid #2E2620", background: p.color, boxShadow: "0 4px 0 #2E2620", marginBottom: 8 }} />
-                <div style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 15, marginBottom: 2, textAlign: "center" }}>{p.name}</div>
+              <div key={p.rank} style={{ flex: 1, maxWidth: 200, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                <div style={{ width: 56, height: 56, flex: "none", borderRadius: 16, border: "4px solid #2E2620", background: p.color, boxShadow: "0 4px 0 #2E2620", marginBottom: 8 }} />
+                <div style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 15, marginBottom: 2, textAlign: "center", overflowWrap: "anywhere" }}>{p.name}</div>
                 <div style={{ fontSize: 11, fontWeight: 800, color: "#B0794A", marginBottom: 8 }}>{p.xp} charge</div>
                 <div style={{ width: "100%", height: p.height, border: "4px solid #2E2620", borderBottom: 0, borderRadius: "16px 16px 0 0", background: p.medal, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 8, fontFamily: FREDOKA, fontWeight: 700, fontSize: 24, color: "#2E2620" }}>
                   {p.rank}
@@ -55,7 +55,7 @@ export function Leaderboard({ data }: Props) {
           >
             <div style={{ width: 30, fontFamily: FREDOKA, fontWeight: 700, fontSize: 18, color: "#B0794A", textAlign: "center" }}>{l.rank}</div>
             <span style={{ width: 38, height: 38, flex: "none", borderRadius: 12, border: "3px solid #2E2620", background: l.color }} />
-            <div style={{ flex: 1, fontFamily: FREDOKA, fontWeight: 600, fontSize: 16 }}>{l.name}</div>
+            <div style={{ flex: 1, minWidth: 0, fontFamily: FREDOKA, fontWeight: 600, fontSize: 16, overflowWrap: "anywhere" }}>{l.name}</div>
             <div style={{ fontWeight: 800, fontSize: 14, color: "#5C4A3C" }}>{l.xp}</div>
             <div style={{ fontSize: 11, fontWeight: 800, color: "#B0794A" }}>charge</div>
           </div>

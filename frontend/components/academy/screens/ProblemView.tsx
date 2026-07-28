@@ -41,6 +41,8 @@ const codeBlock = {
   fontSize: 13,
   lineHeight: 1.65,
   whiteSpace: "pre-wrap" as const,
+  // A long line has to fold rather than push the card wider than the screen.
+  overflowWrap: "anywhere" as const,
   margin: 0,
 };
 
@@ -166,8 +168,8 @@ export function ProblemView({ problem, code, onCodeChange, language, onLanguageC
     <div data-screen-label="Problem View" style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 22, maxWidth: 1180, margin: "0 auto", alignItems: "start" }} className="acad-problem">
       {/* LEFT: problem + workspace */}
       <section style={{ display: "flex", flexDirection: "column", gap: 22 }}>
-        <div style={{ ...card, padding: 24 }}>
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 18 }}>
+        <div className="acad-card" style={{ ...card, padding: 24 }}>
+          <div className="acad-prob-head" style={{ display: "flex", alignItems: "flex-start", gap: 18 }}>
             <div style={{ flex: "none", textAlign: "center" }}>
               <div style={{ width: 70, height: 70, background: problem.zone_color, border: "4px solid #2E2620", borderRadius: 18, boxShadow: "0 6px 0 #2E2620", position: "relative" }}>
                 <span style={{ position: "absolute", inset: 14, border: "3px dashed #2E2620", borderRadius: 10 }} />
@@ -188,18 +190,18 @@ export function ProblemView({ problem, code, onCodeChange, language, onLanguageC
                   </span>
                 )}
               </div>
-              <h1 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 26, margin: "0 0 8px" }}>{problem.title}</h1>
+              <h1 className="acad-h1" style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 26, margin: "0 0 8px" }}>{problem.title}</h1>
               <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.5, color: "#5C4A3C", whiteSpace: "pre-wrap" }}>{problem.prompt}</p>
             </div>
           </div>
-          <div style={{ marginTop: 18, background: "#2E2620", borderRadius: 14, padding: "16px 18px", fontFamily: MONO, fontSize: 13, color: "#EAF7D9", lineHeight: 1.6 }}>
+          <div style={{ marginTop: 18, background: "#2E2620", borderRadius: 14, padding: "16px 18px", fontFamily: MONO, fontSize: 13, color: "#EAF7D9", lineHeight: 1.6, overflowWrap: "anywhere" }}>
             <div style={{ color: "#F7C948" }}>Example</div>
             <div style={{ whiteSpace: "pre-wrap" }}>Input:&nbsp;&nbsp;{problem.example_input}</div>
             <div style={{ whiteSpace: "pre-wrap" }}>Output: {problem.example_output}</div>
           </div>
         </div>
 
-        <div style={{ ...card, padding: 20 }}>
+        <div className="acad-card" style={{ ...card, padding: 20 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
             <h2 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 17, margin: 0 }}>Your Workbench</h2>
             {problem.languages.length > 1 ? (
@@ -331,7 +333,7 @@ export function ProblemView({ problem, code, onCodeChange, language, onLanguageC
       </section>
 
       {/* RIGHT: tiered resource panel */}
-      <section style={{ ...card, padding: 22 }}>
+      <section className="acad-card" style={{ ...card, padding: 22 }}>
         <h2 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 19, margin: "0 0 4px" }}>Help Shelf</h2>
         <p style={{ margin: "0 0 18px", fontSize: 12, color: "#9B7B5B", fontWeight: 700 }}>Open a chest for help — but peeking past the explainer forfeits your unaided bonus.</p>
 

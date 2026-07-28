@@ -117,7 +117,7 @@ export function Auth({ mode, showWelcome, pending, error, onBack, onSubmit, onSw
       </div>
 
       {/* right: form */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "48px 40px" }}>
+      <div className="auth-form-pane" style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "48px 40px" }}>
         <form
           style={{ width: "100%", maxWidth: 380 }}
           onSubmit={(e) => {

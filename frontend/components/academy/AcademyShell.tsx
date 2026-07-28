@@ -69,7 +69,7 @@ function Chrome({ children }: { children: ReactNode }) {
           onWind={windUp}
         />
 
-        <div style={{ padding: "26px 30px 60px", flex: 1 }}>{children}</div>
+        <div className="acad-main" style={{ padding: "26px 30px 60px", flex: 1 }}>{children}</div>
       </main>
 
       <Confetti pieces={confetti} />

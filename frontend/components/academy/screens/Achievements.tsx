@@ -10,12 +10,12 @@ export function Achievements({ toyName, data }: Props) {
       <div style={{ position: "relative", background: "#EF5B54", border: "4px solid #2E2620", borderRadius: 24, padding: "22px 28px", marginBottom: 26, boxShadow: "0 8px 0 #A9302B", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: 14, background: "repeating-linear-gradient(#F7C948 0 12px,#2E2620 12px 16px)" }} />
         <div style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: 14, background: "repeating-linear-gradient(#F7C948 0 12px,#2E2620 12px 16px)" }} />
-        <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "0 20px" }}>
+        <div className="acad-sash-row" style={{ display: "flex", alignItems: "center", gap: 18, padding: "0 20px" }}>
           <div style={{ width: 60, height: 60, flex: "none", background: "#F7C948", border: "4px solid #2E2620", borderRadius: "50%", boxShadow: "0 4px 0 #2E2620", position: "relative" }}>
             <span style={{ position: "absolute", inset: 12, border: "3px solid #2E2620", borderRadius: "50%" }} />
           </div>
           <div style={{ flex: 1 }}>
-            <h1 style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 26, color: "#fff", margin: 0 }}>{toyName}&apos;s Merit Sash</h1>
+            <h1 className="acad-h1" style={{ fontFamily: FREDOKA, fontWeight: 700, fontSize: 26, color: "#fff", margin: 0 }}>{toyName}&apos;s Merit Sash</h1>
             <p style={{ margin: "2px 0 0", color: "#FFE3E1", fontWeight: 700, fontSize: 13 }}>Every badge is a toy you helped come to life.</p>
           </div>
           <div style={{ textAlign: "center", color: "#fff" }}>
@@ -28,7 +28,7 @@ export function Achievements({ toyName, data }: Props) {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(170px,1fr))", gap: 20 }}>
+      <div className="acad-badges" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(min(170px,100%),1fr))", gap: 20 }}>
         {data.items.map((a) => (
           <div
             key={a.slug}
