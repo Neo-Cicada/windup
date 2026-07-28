@@ -64,8 +64,14 @@ async def _totals(user_id) -> tuple[int, int, int]:
 
 
 async def _ids(client, auth) -> tuple:
+    """Every problem's id, keyed by slug.
+
+    The explicit `limit` is load-bearing: the endpoint defaults to 50 and the
+    catalogue is larger than that, so without it the slugs these tests name
+    would quietly fall off the end of the page.
+    """
     me = (await client.get("/api/v1/me", headers=auth)).json()
-    problems = (await client.get("/api/v1/problems", headers=auth)).json()
+    problems = (await client.get("/api/v1/problems?limit=200", headers=auth)).json()
     return me["id"], {p["slug"]: p["id"] for p in problems}
 
 

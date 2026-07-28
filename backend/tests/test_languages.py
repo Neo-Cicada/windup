@@ -117,11 +117,17 @@ def test_every_registered_pack_generates_a_stub_for_every_seeded_signature() -> 
 
 
 def test_every_seeded_signature_parses() -> None:
-    """A malformed one would surface as a broken problem page, so it is caught here."""
+    """A malformed one would surface as a broken problem page, so it is caught here.
+
+    `None` is a legitimate signature: SQL has no entrypoint to describe. What is
+    not legitimate is a problem that *does* call a function and can't say what it
+    takes — no statically typed pack could generate its stub.
+    """
     from app.db.seed_data import PROBLEMS
 
     for spec in PROBLEMS:
-        assert parse_signature(spec.get("signature")) is not None or "signature" not in spec
+        signature = parse_signature(spec["signature"])  # raises on a malformed one
+        assert (signature is not None) == bool(spec["entrypoint"]), spec["slug"]
 
 
 # ---- benches ----------------------------------------------------------------
