@@ -28,7 +28,7 @@ There is no frontend test runner. `/academy` needs the backend up, a judge worke
 
 The problem screen has two buttons and they are not the same thing. **Run** executes the visible examples in the browser — instant, earns nothing, grades nothing, and keeps the great majority of executions off the server. **Submit** sends the code to the judge and is the only thing that decides whether a problem is solved.
 
-`lib/runners/` holds one browser engine per language it is cheap to run locally: Python through Pyodide (`public/pyodide/runner.worker.js`; the ~11MB runtime is gitignored, copied in by `scripts/copy-pyodide.mjs`, and fetched only when a toy first presses Run) and JavaScript through a plain Worker (`public/runners/js.worker.js`, which downloads nothing at all). A language with no entry in that registry simply has no Run button — `runs_in_browser` on the problem payload is what the UI asks.
+`lib/runners/` holds one browser engine per language it is cheap to run locally, and `runners/index.ts` is the registry: Python through Pyodide (`public/pyodide/runner.worker.js`; the ~11MB runtime is gitignored, copied in by `scripts/copy-pyodide.mjs`, and fetched only when a toy first presses Run), JavaScript through a plain Worker (`public/runners/js.worker.js`, which downloads nothing at all), and SQL riding along in the Pyodide worker for free, since `sqlite3` is already bundled there. A language with no entry in that registry simply has no Run button — `runs_in_browser` on the problem payload is what the UI asks. Comparison happens in `index.ts` rather than inside each engine, so what Run shows a toy matches how the judge will decide.
 
 ### Backend (`cd backend`)
 
@@ -67,7 +67,7 @@ Layering is `api/v1/endpoints/*` → `services/*` → `models/*`, with `schemas/
 
 ### The judge (`app/judge/`)
 
-`languages/` assembles the guest program, `runner.py` executes it, `grade.py` compares, `worker.py` is the claim loop. Every problem is called the same way — `_dump(entrypoint(*_build(args)))` — so a problem needing a `ListNode` defines it and overrides the adapters in its own `harness_preamble`, and the runner needs no per-problem branching.
+`languages/` assembles the guest program, `runner.py` executes it, `grade.py` compares, `worker.py` is the claim loop. `harness.py` is the language-neutral half of that contract — the case payload going in and the results coming back, the part that is the same whatever the toy wrote in — and it re-exports the Python pack's builders so the judge's oldest import path still resolves. Every problem is called the same way — `_dump(entrypoint(*_build(args)))` — so a problem needing a `ListNode` defines it and overrides the adapters in its own `harness_preamble`, and the runner needs no per-problem branching.
 
 The security property is that **expected values never enter the sandbox**: only arguments go in, and the host compares. Submitted code shares a process with the driver and can write anything to stdout, but without the expected values the only way to forge a pass is to emit correct answers.
 
@@ -94,7 +94,7 @@ Payout lives in `app/services/submissions.py::settle()`. Three things keep it co
 
 ### Catalogue content (`app/db/seed_data/`)
 
-The quest map follows the [NeetCode roadmap](https://neetcode.io/roadmap): 19 zones of 5 problems, one zone per topic in roadmap order, plus Toy Kitchen for SQL at the end. `zones.py` is the map — position in that list becomes `sort_order`, so reordering it reorders the map, and `building-blocks` / `marble-run` / `board-game` are named by the zone-clear badges in `app/services/achievements.py`.
+The quest map follows the [NeetCode roadmap](https://neetcode.io/roadmap): 19 zones of 5 problems each — 95 in all — one zone per roadmap topic in roadmap order, with Toy Kitchen for SQL as the nineteenth. `zones.py` is the map — position in that list becomes `sort_order`, so reordering it reorders the map, and `building-blocks` / `marble-run` / `board-game` are named by the zone-clear badges in `app/services/achievements.py`.
 
 - **One module per zone** under `problems/`, assembled in `problems/__init__.py`. `seed_data/__init__.py` still exports the same `ZONES` / `PROBLEMS` / `ACHIEVEMENTS` the seeder and tests import.
 - **`spec.py` is the shape a problem is written in.** `problem()` derives `weight_label` and `xp_reward` from the difficulty and generates the Python stub from the entrypoint and signature, so those three can't drift; `example()` / `hidden()` / `sig()` are the rest. Everything it emits is the plain dict `seed_catalogue` always read.
@@ -102,6 +102,8 @@ The quest map follows the [NeetCode roadmap](https://neetcode.io/roadmap): 19 zo
 - **`compare_mode` has three settings**, and the difference matters: `exact`, `unordered` (sorts the answer, for top-k and k-closest), and `unordered_deep` (sorts every list inside it too, for subsets, 3sum and the anagram groupings). Permutations deliberately use `unordered` rather than `unordered_deep` — the arrangements may come in any order but an arrangement is not a set.
 
 `tests/test_catalogue.py` is what keeps this honest, and it runs without a database: every problem's own reference solution is graded against its own cases through the real judging path, and every bench a problem offers is assembled — including rendering the cases as literals for the compiled packs. **A wrong expected value in a hidden case is a red test, not something a toy discovers on a case it isn't allowed to see.**
+
+Reference solutions come from two places and the split is worth knowing. **Every problem carries its own Python one** as a required `solution=` on `problem()`, which is what `solution_for(slug)` (in `tests/conftest.py`) returns and what the catalogue test grades. **`tests/solutions.py` is the other languages** — `SOLUTIONS` keyed by language, deliberately a handful of problems each rather than all 95, since its job is to prove that one set of hidden cases grades every language *the same*, and that needs breadth of language, not breadth of problem. Adding a language pack means adding its column there.
 
 ### Gameplay constants
 
