@@ -83,6 +83,17 @@ async def auth(client: AsyncClient, seeded: None) -> dict[str, str]:
     return {"Authorization": f"Bearer {resp.json()['access_token']}"}
 
 
+@pytest.fixture
+async def auth2(client: AsyncClient, seeded: None) -> dict[str, str]:
+    """A second toy's Authorization header — for anything that takes two, like a duel."""
+    resp = await client.post(
+        "/api/v1/auth/signup",
+        json={"toy_name": "Pipsqueak", "email": "pipsqueak@playroom.com", "password": "windup123"},
+    )
+    assert resp.status_code == 201, resp.text
+    return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+
+
 def solution_for(slug: str) -> str:
     """The seeded reference solution — a submission that ought to pass."""
     from app.db.seed_data import PROBLEMS
@@ -172,3 +183,10 @@ class Judge:
 @pytest.fixture
 async def judge(client: AsyncClient, auth: dict[str, str]) -> Judge:
     return Judge(client, auth)
+
+
+@pytest.fixture
+async def judge2(client: AsyncClient, auth2: dict[str, str]) -> Judge:
+    """The second toy's judge. `drain()` claims every pending row regardless of owner,
+    so either one settles both toys' work — which is what makes a duel testable."""
+    return Judge(client, auth2)
