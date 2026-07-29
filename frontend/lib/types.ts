@@ -3,6 +3,7 @@
 export type Difficulty = "easy" | "medium" | "hard";
 export type ChestTier = "hint" | "approach" | "solution";
 export type BossStatus = "running" | "paused" | "completed" | "expired" | "abandoned";
+export type DuelStatus = "waiting" | "active" | "completed" | "expired" | "abandoned";
 /** `pending`/`running` are queue states — the judge hasn't ruled yet. */
 export type SubmissionStatus =
   | "pending"
@@ -254,6 +255,67 @@ export type BossSession = {
 };
 
 export type BossAction = "start" | "pause" | "resume" | "complete" | "abandon";
+
+/**
+ * A duel, always from the reading toy's own point of view — `you` and `them`, never
+ * host and opponent. Both sides render from the same shape with no branching.
+ */
+export type DuelPlayer = {
+  toy_name: string;
+  avatar_body: string;
+  avatar_head: string;
+  rounds_cleared: number;
+  /** Which chips light up on this side. */
+  cleared_ordinals: number[];
+  forfeited: boolean;
+  xp_awarded: number;
+};
+
+export type DuelRound = {
+  ordinal: number;
+  slug: string;
+  title: string;
+  difficulty: Difficulty;
+  zone: string;
+  color: string;
+  you_solved: boolean;
+  they_solved: boolean;
+};
+
+export type Duel = {
+  id: string;
+  code: string;
+  status: DuelStatus;
+  rounds_total: number;
+  total_seconds: number;
+  remaining_seconds: number;
+  time_label: string;
+  pct: number;
+  you: DuelPlayer;
+  them: DuelPlayer | null;
+  you_are_host: boolean;
+  /** Empty until the duel starts — the server has nothing to reveal before then. */
+  rounds: DuelRound[];
+  winner: "you" | "them" | "draw" | null;
+  outcome_label: string;
+  invite_path: string;
+  /** The server owns the cadence: 2s racing, 5s waiting, 0 means stop polling. */
+  poll_after_ms: number;
+};
+
+/** What a non-participant sees of an invite. Structurally cannot carry the problems. */
+export type DuelInvite = {
+  code: string;
+  status: DuelStatus;
+  host_name: string;
+  host_avatar: string;
+  rounds_total: number;
+  total_seconds: number;
+  joinable: boolean;
+  message: string;
+};
+
+export type DuelAction = "forfeit" | "cancel";
 
 export type DashboardData = {
   toy_name: string;

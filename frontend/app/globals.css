@@ -202,6 +202,14 @@ input {
   .acad-acct-grid {
     grid-template-columns: 1fr !important;
   }
+  /* Two toys either side of a clock stop fitting; stack them so the clock sits
+     between the corners rather than squeezing them off the edge. */
+  .acad-duel {
+    flex-direction: column !important;
+  }
+  .acad-duel-lobby {
+    grid-template-columns: 1fr !important;
+  }
 }
 
 /* ---- The sidebar becomes a top bar -------------------------------------- *
@@ -346,6 +354,19 @@ input {
   }
   .acad-boss-time {
     font-size: 42px !important;
+  }
+  /* The round columns go full width one under another — a 132px minimum leaves
+     three of them fighting for a phone's width otherwise. */
+  .acad-duel-chips {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .acad-duel-side {
+    min-width: 0 !important;
+  }
+  .acad-duel-code {
+    font-size: 38px !important;
+    letter-spacing: 5px !important;
   }
   .acad-sash-row {
     padding: 0 6px !important;

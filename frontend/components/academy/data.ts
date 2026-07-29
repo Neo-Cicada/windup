@@ -25,6 +25,7 @@ export const NAV: NavItem[] = [
   { href: "/academy/quests", label: "Quest Map", title: "Quest Map", sub: "Explore", color: "#4FB0E5" },
   { href: "/academy/problem", label: "Problem", title: "Problem View", sub: "Today's toy", color: "#6FBF73" },
   { href: "/academy/boss", label: "Boss Battle", title: "Boss Battle", sub: "Mock round", color: "#8B6FD6" },
+  { href: "/academy/duel", label: "Duel", title: "Duel", sub: "1v1", color: "#E0566B" },
   { href: "/academy/achievements", label: "Merit Sash", title: "Merit Sash", sub: "Badges", color: "#F7C948" },
   { href: "/academy/analytics", label: "Analytics", title: "Analytics", sub: "Progress", color: "#E08A3C" },
   { href: "/academy/leaderboard", label: "Shelf of Fame", title: "Shelf of Fame", sub: "Ranks", color: "#3E8FC4" },
