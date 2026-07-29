@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { Winding } from "./ScreenState";
 
@@ -13,15 +13,20 @@ import { Winding } from "./ScreenState";
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { status } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
-    if (status === "anon") router.replace("/");
-  }, [status, router]);
+    if (status !== "anon") return;
+    // Carry where they were headed. A duel invite is the case that makes this matter:
+    // the link is shared with a friend precisely when that friend may not be signed in
+    // yet, and dropping them on the landing page loses the code entirely.
+    router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+  }, [status, pathname, router]);
 
   if (status !== "authed") {
     return (
       <div style={{ minHeight: "100vh", background: "#FCF6E9", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <Winding label={status === "anon" ? "Back to the playroom…" : "Checking your key…"} />
+        <Winding label={status === "anon" ? "Finding your key…" : "Checking your key…"} />
       </div>
     );
   }

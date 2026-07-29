@@ -61,7 +61,7 @@ async def test_dashboard_returns_one_payload(client: AsyncClient, auth: dict[str
     body = (await client.get("/api/v1/dashboard", headers=auth)).json()
     assert body["toy_name"] == "Patches"
     assert body["progress"]["level"] == 1
-    assert body["badges_label"].endswith("/12")
+    assert body["badges_label"].endswith("/13")
     assert len(body["quests"]) == 3  # settings.DAILY_QUESTS
     assert body["rank"] == 1
 

@@ -107,7 +107,7 @@ Reference solutions come from two places and the split is worth knowing. **Every
 
 ### Gameplay constants
 
-Tuning numbers (`XP_SOLVE_UNAIDED`, `XP_MAX_GROWTH`, `BOSS_DURATION_SECONDS`, `DAILY_QUESTS`, `JUDGE_*`, …) live in `app/core/config.py` as settings, not as literals in endpoints.
+Tuning numbers (`XP_SOLVE_UNAIDED`, `XP_MAX_GROWTH`, `BOSS_DURATION_SECONDS`, `DAILY_QUESTS`, `DUEL_*`, `JUDGE_*`, …) live in `app/core/config.py` as settings, not as literals in endpoints.
 
 The frontend no longer recomputes any of this: XP, levels, level names and streaks come back on the response to whatever caused them (`SubmissionResultOut.progress`, `DashboardOut` from `/me/wind-up`). `app/services/leveling.py` is the only implementation — don't reintroduce an optimistic copy in the client.
 
@@ -120,6 +120,9 @@ These are the load-bearing rules; several endpoints exist specifically to enforc
 - **The problem decides which languages it can be solved in.** `ProblemDetailOut.languages` is the list, and submitting in anything else is a `400` — the client cannot invent a bench, and the verdict names the language that produced it.
 - Locked help-chest tiers come back as `null` from `GET /problems/{slug}` — the server never ships a chest the user hasn't opened. Opening one records a `ChestUnlock`, which is what makes a later solve "aided" (base reward instead of double).
 - Re-solving a problem pays nothing, which is also what stops old solves from clearing a boss rematch.
+- **A duel round counts differently from a boss round, deliberately.** The boss requires a submission that *paid out*, i.e. a first-time solve. A duel counts any passed submission tagged into it for a problem in its round set — because the boss's rule would make a race silently unwinnable for whoever had already solved one of the problems, losing them the duel to a bug rather than to an opponent. What replaces it is the join to `duel_rounds`; without that join a toy clears three rounds by solving one easy problem three times. Both tags are claims the submit endpoint re-resolves (`resolve_duel_tag`, `_resolve_boss_tag`) and silently drops when they don't hold — refusing a correct solve at the moment a clock expires would be the worse trade.
+- **A duel's winner is decided by whichever poll notices first**, from committed `judged_at` timestamps, under a conditional `UPDATE … WHERE status = 'active' RETURNING id`. The decision (`services/duels.decide`) is pure, so both players compute the same answer and the guard only picks who records it. Rewrite that as a plain attribute assignment and both polls pay out. `settle()` is deliberately not involved — paying the loser from inside the worker's transaction would mean taking two `progress` locks in submission order, which is a deadlock waiting for two workers.
+- A duel's problems don't exist until someone joins: `duel_rounds` rows are written in the transaction that starts the clock, so a waiting duel has no rounds to leak and there's no `revealed` flag to forget. `DuelInviteOut` is a separate schema for the same reason — a type that structurally cannot hold the problem set beats one that merely shouldn't.
 - Boss `complete` is not self-declared: it counts distinct problems solved *during that session* (submissions carrying its `boss_session_id` that paid out XP) and returns `409` naming the shortfall. The clock is computed server-side from the last resume, so refreshing or opening a second tab can't extend it.
 - `POST /me/wind-up` is once per day, enforced by a unique constraint (see the `enforce_one_wind_up_per_day` migration).
 - `PATCH /me` edits toy name and notification toggles only. Password and email changes re-authenticate with the current password.
@@ -133,7 +136,7 @@ See `backend/README.md` for the full endpoint table and data model.
 
 ## Frontend architecture
 
-Every screen is a real URL. `/` is the pitch, `/login` and `/signup` the forms (both render `AuthRoute` with a different `mode`); the dashboard is nine routes under `/academy`:
+Every screen is a real URL. `/` is the pitch, `/login` and `/signup` the forms (both render `AuthRoute` with a different `mode`); the dashboard is eleven routes under `/academy`:
 
 | route | screen |
 | --- | --- |
@@ -142,15 +145,19 @@ Every screen is a real URL. `/` is the pitch, `/login` and `/signup` the forms (
 | `/academy/problem` | redirects to today's first quest |
 | `/academy/problem/[slug]` | the workbench |
 | `/academy/boss` | Boss Battle |
+| `/academy/duel` | Duel — the lobby, or the arena once one is running |
+| `/academy/duel/[code]` | where a shared invite link lands |
 | `/academy/achievements` · `/academy/analytics` · `/academy/leaderboard` · `/academy/profile` | the rest |
 
 Each `page.tsx` is a server shell that exports `metadata` and renders one client container from `components/academy/routes/*`; the containers own the screen's own state and fetching, and `components/academy/screens/*` stay presentational — props and callbacks only. The exception is `screens/Profile.tsx`, which owns its own form fields and returns them to `ProfileRoute` on save.
 
 The three public routes follow the same container/presentational split one level up — `LandingRoute`/`Landing`, `AuthRoute`/`Auth` — and both containers bounce an already-authed visitor to `/academy`. They draw from `components/data.ts` and `components/publicBg.ts`, which are **not** `components/academy/data.ts`; the two `data.ts` files are unrelated and both export `FREDOKA`.
 
+`RequireAuth` sends an anonymous visitor to `/login?next=<pathname>` rather than to `/`, and `AuthRoute` delivers them there afterwards (validating the path starts with `/academy`, so it can't be an open redirect). That exists for the duel invite link, which is shared precisely with people who may not be signed in yet — dropping them on the landing page loses the code. Reading `next` means `useSearchParams`, so `AuthRoute` wraps its own form in a `Suspense` boundary; without one the prerender of `/login` fails.
+
 `app/academy/layout.tsx` renders `AcademyShell` — `RequireAuth`, then `AcademyProvider`, then the sidebar, topbar and confetti. **The layout doesn't unmount as you move between screens, and that's load-bearing.** `AcademyProvider` (`useAcademy()`) owns everything shared: the `/dashboard` and `/analytics/streak` resources behind the topbar, the wind-up mutation, Sprocket's line, confetti, and the boss fight (`useBossFight`). So a leaf calling `dashboard.reload()` after a solve still moves the topbar, and a judge poll that settles after you've wandered off still pays out and throws its confetti.
 
-The boss fight in particular *must* live there: a submission only counts towards a round if it carries the running session's id, and that id is read from the problem route. `/boss/current` is fetched on provider mount rather than when the boss screen opens, because a bookmarked problem link is a normal way in.
+The boss fight in particular *must* live there: a submission only counts towards a round if it carries the running session's id, and that id is read from the problem route. `/boss/current` is fetched on provider mount rather than when the boss screen opens, because a bookmarked problem link is a normal way in. `useDuel` sits beside it for exactly the same reason, plus one of its own — a duel changes because of what the *other* toy did, so it carries the poll (cadence from the server's `poll_after_ms`, paused while the tab is hidden, keyed on the duel rather than on the callback that consumes it).
 
 `NAV` in `components/academy/data.ts` is the single source of truth for the sidebar — `href`, `label` (the button) and `title` (the topbar). `isNavActive` is what keeps "Problem" lit on `/academy/problem/two-sum`; `titleForPath` feeds the topbar. Unsaved workbench code is kept per slug *and language* in `sessionStorage` (`components/academy/drafts.ts`), since the editor unmounts when you leave its route and switching benches to compare two stubs should not throw either attempt away.
 
@@ -184,4 +191,4 @@ An inline style can't hold a media query, so **everything responsive is a class 
 
 - Commits follow Conventional Commits with a scope: `feat(backend): …`, `test(backend): …`, `docs: …`.
 - User-facing API messages stay in the toy voice ("Sprocket doesn't recognise that key", "That toy isn't on any shelf"). Match the surrounding tone rather than writing generic errors.
-- Domain vocabulary maps to plain terms: charge = XP, shelf level = level, toy = user, help chest = hint tier, boss battle = timed mock round, merit sash = achievements, shelf of fame = leaderboard.
+- Domain vocabulary maps to plain terms: charge = XP, shelf level = level, toy = user, help chest = hint tier, boss battle = timed mock round, duel = 1v1 race between two toys, merit sash = achievements, shelf of fame = leaderboard.

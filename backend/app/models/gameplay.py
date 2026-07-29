@@ -21,7 +21,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDMixin
-from app.models.enums import BossStatus, SubmissionStatus, XpSource
+from app.models.enums import BossStatus, DuelStatus, SubmissionStatus, XpSource
 
 if TYPE_CHECKING:
     from app.models.content import Achievement, Problem
@@ -58,6 +58,14 @@ class Submission(UUIDMixin, TimestampMixin, Base):
     __table_args__ = (
         # The worker's claim query: oldest pending first.
         Index("ix_submissions_queue", "status", "created_at"),
+        # Duel round counting runs on every 2-second poll, for both players. Partial,
+        # because the overwhelming majority of submissions are not part of a duel.
+        Index(
+            "ix_submissions_duel",
+            "duel_id",
+            "user_id",
+            postgresql_where=text("duel_id IS NOT NULL"),
+        ),
     )
 
     user_id: Mapped[uuid.UUID] = mapped_column(
@@ -68,6 +76,12 @@ class Submission(UUIDMixin, TimestampMixin, Base):
     )
     boss_session_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("boss_sessions.id", ondelete="SET NULL")
+    )
+    # Set only by `resolve_duel_tag` in the submit endpoint, which refuses to write it
+    # unless the toy is in that duel, the clock is still running, and the problem is
+    # genuinely one of the duel's rounds.
+    duel_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("duels.id", ondelete="SET NULL")
     )
 
     code: Mapped[str] = mapped_column(Text, default="", nullable=False)
@@ -195,3 +209,85 @@ class BossSession(UUIDMixin, TimestampMixin, Base):
     xp_awarded: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     user: Mapped[User] = relationship(back_populates="boss_sessions")
+
+
+class Duel(UUIDMixin, TimestampMixin, Base):
+    """A head-to-head race: two toys, the same N problems, one clock.
+
+    Deliberately *not* a BossSession with a second user bolted on. A duel has no pause,
+    so it needs no remaining_seconds/resumed_at snapshot pair: the clock is
+    `started_at + total_seconds` and nothing a client does can stretch it.
+    """
+
+    __tablename__ = "duels"
+    __table_args__ = (
+        # The invitee's lookup, and the uniqueness that stops a recycled code resolving
+        # to somebody else's duel. Codes are unique forever, not just among live duels.
+        Index("ix_duels_code", "code", unique=True),
+    )
+
+    # Six characters from an unambiguous alphabet, stored canonically uppercase.
+    code: Mapped[str] = mapped_column(String(8), nullable=False)
+
+    host_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    # Null until someone accepts the invite. Setting it is what starts the clock.
+    opponent_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+
+    status: Mapped[str] = mapped_column(String(16), default=DuelStatus.WAITING, nullable=False)
+    rounds_total: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
+    total_seconds: Mapped[int] = mapped_column(Integer, default=900, nullable=False)
+
+    # Set when the opponent joins. The clock is derived from this and nothing else.
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # Null on a draw, and on a duel nobody won. Set to the *other* toy on a forfeit.
+    winner_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
+    )
+    # Which toy walked away, if either — distinguishes a walkover from a real win.
+    forfeited_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
+    )
+
+    # Paid once, at close-out. Non-zero is the idempotency guard, like BossSession's.
+    host_xp_awarded: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    opponent_xp_awarded: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    host: Mapped[User] = relationship(foreign_keys=[host_id], lazy="selectin")
+    opponent: Mapped[User | None] = relationship(foreign_keys=[opponent_id], lazy="selectin")
+    rounds: Mapped[list[DuelRound]] = relationship(
+        back_populates="duel", cascade="all, delete-orphan", order_by="DuelRound.ordinal"
+    )
+
+
+class DuelRound(UUIDMixin, TimestampMixin, Base):
+    """One problem in a duel's set.
+
+    These rows do not exist until the duel starts. That *is* the reveal: there is no
+    `revealed` flag anyone can forget to check, because a waiting duel has no rounds
+    to leak. They are written at join time, in the same transaction that flips the duel
+    to `active` — which is also the first moment both toys' solve histories are known,
+    and the set is filtered against the pair of them.
+    """
+
+    __tablename__ = "duel_rounds"
+    __table_args__ = (
+        UniqueConstraint("duel_id", "ordinal", name="uq_duel_rounds_duel_ordinal"),
+        UniqueConstraint("duel_id", "problem_id", name="uq_duel_rounds_duel_problem"),
+    )
+
+    duel_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("duels.id", ondelete="CASCADE"), index=True
+    )
+    problem_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("problems.id", ondelete="CASCADE"), index=True
+    )
+    ordinal: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    duel: Mapped[Duel] = relationship(back_populates="rounds")
+    problem: Mapped[Problem] = relationship(lazy="selectin")

@@ -41,6 +41,20 @@ class Settings(BaseSettings):
     BOSS_DURATION_SECONDS: int = 900
     DAILY_QUESTS: int = 3
 
+    # Duels — the head-to-head race. The payout sits *on top of* whatever solving each
+    # problem already paid through settle(), so these are bonuses, not solve rewards.
+    DUEL_ROUNDS: int = 3
+    DUEL_DURATION_SECONDS: int = 900
+    # How long an unaccepted invite stays joinable. The code stays unique forever.
+    DUEL_INVITE_TTL_SECONDS: int = 900
+    DUEL_XP_WIN: int = 250
+    DUEL_XP_SPEED_BONUS_MAX: int = 100  # clean-sweep winner only, scaled by time left
+    DUEL_XP_PARTICIPATION: int = 40  # per round cleared, both sides, win or lose
+    DUEL_XP_FORFEIT_WIN: int = 60  # a walkover is not a win
+    # Two accounts duelling on a loop is the one exploit the problem-set filter can't
+    # close, so the bonus is capped per day rather than policed for intent.
+    DUEL_DAILY_BONUS_CAP: int = 500
+
     # Judge. The API never executes submitted code — it enqueues, and
     # `python -m app.judge.worker` runs it. Scale by adding worker processes.
     JUDGE_RUNNER: str = "wasm"  # "wasm" | "subprocess"

@@ -37,7 +37,7 @@ function benchFor(problem: ProblemDetail, language: string): ProblemLanguage {
 }
 
 export function ProblemRoute({ slug }: { slug: string }) {
-  const { boss, dashboard, streak, burst, say } = useAcademy();
+  const { boss, duel, dashboard, streak, burst, say } = useAcademy();
 
   const [problem, setProblem] = useState<ProblemDetail | null>(null);
   const [loadError, setLoadError] = useState<{ slug: string; message: string } | null>(null);
@@ -177,8 +177,10 @@ export function ProblemRoute({ slug }: { slug: string }) {
         code,
         // Which bench this was written at decides which interpreter judges it.
         language,
-        // Tagging the submission is what lets a boss round actually clear.
+        // Tagging the submission is what lets a boss round or a duel round actually
+        // clear. Both are claims the server re-checks before it writes them down.
         boss_session_id: boss.session?.status === "running" ? boss.session.id : null,
+        duel_id: duel.activeId,
       });
       if (submitNonce.current !== nonce) return;
       setSubmitResult({
@@ -204,6 +206,9 @@ export function ProblemRoute({ slug }: { slug: string }) {
       dashboard.reload();
       streak.reload();
       if (boss.session !== null) boss.refresh();
+      // The duel screen polls on its own, but the toy is standing on this one — don't
+      // make them wait a tick to see their own chip light up.
+      if (duel.duel !== null) duel.refresh();
     } catch (err) {
       if (submitNonce.current === nonce) {
         setActionError(errorMessage(err));

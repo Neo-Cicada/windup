@@ -5,6 +5,7 @@ from app.api.v1.endpoints import (
     analytics,
     auth,
     boss,
+    duels,
     languages,
     leaderboard,
     problems,
@@ -26,3 +27,4 @@ api_router.include_router(achievements.router)
 api_router.include_router(analytics.router)
 api_router.include_router(leaderboard.router)
 api_router.include_router(boss.router)
+api_router.include_router(duels.router)

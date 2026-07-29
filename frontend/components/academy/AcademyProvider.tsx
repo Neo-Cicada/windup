@@ -6,12 +6,14 @@ import { errorMessage, post } from "@/lib/api";
 import { useResource, type Resource } from "@/lib/useResource";
 import type { DashboardData, StreakSummary } from "@/lib/types";
 import { useBossFight, type BossFight } from "./useBossFight";
+import { useDuel, type DuelGame } from "./useDuel";
 
 type AcademyValue = {
   /** The toy's charge, level and today's quests — read by the topbar on every screen. */
   dashboard: Resource<DashboardData>;
   streak: Resource<StreakSummary>;
   boss: BossFight;
+  duel: DuelGame;
   confetti: ConfettiPiece[];
   burst: (n: number) => void;
   /** Give Sprocket a new line. */
@@ -69,6 +71,16 @@ export function AcademyProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  const duel = useDuel({
+    say,
+    onFinish: (finished) => {
+      say(finished.outcome_label);
+      if (finished.winner === "you") burst(80);
+      dashboard.reload();
+      streak.reload();
+    },
+  });
+
   async function windUp() {
     setWinding(true);
     try {
@@ -88,6 +100,7 @@ export function AcademyProvider({ children }: { children: ReactNode }) {
     dashboard,
     streak,
     boss,
+    duel,
     confetti,
     burst,
     say,
