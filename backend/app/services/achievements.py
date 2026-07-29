@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import (
     Achievement,
     BossSession,
+    Duel,
     Problem,
     Progress,
     Submission,
@@ -93,6 +94,9 @@ async def evaluate(db: AsyncSession, user_id: UUID, progress: Progress) -> list[
             .where(BossSession.user_id == user_id, BossSession.status == "completed")
         )
     )
+    duel_win = bool(
+        await db.scalar(select(func.count()).select_from(Duel).where(Duel.winner_id == user_id))
+    )
 
     checks: dict[str, bool] = {
         "first-fix": progress.solved_count >= 1,
@@ -103,6 +107,7 @@ async def evaluate(db: AsyncSession, user_id: UUID, progress: Progress) -> list[
         "graph-guru": await _zone_cleared(db, user_id, "board-game"),
         "night-owl": night_solve,
         "boss-slayer": boss_win,
+        "duellist": duel_win,
         "century-toy": progress.solved_count >= 100,
         "perfect-week": progress.longest_streak >= 7 and progress.solved_count >= 21,
         "speed-wind": fast_solve,

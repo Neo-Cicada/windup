@@ -43,6 +43,12 @@ ACHIEVEMENTS: list[dict] = [
         "color": "#E08A3C",
     },
     {
+        "slug": "duellist",
+        "name": "Duellist",
+        "description": "Win a duel",
+        "color": "#E0566B",
+    },
+    {
         "slug": "marble-champ",
         "name": "Marble Champ",
         "description": "Clear Marble Run",

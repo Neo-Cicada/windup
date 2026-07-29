@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.enums import BossStatus, ChestTier, Difficulty, SubmissionStatus
+from app.models.enums import BossStatus, ChestTier, Difficulty, DuelStatus, SubmissionStatus
 
 
 # ---- progress ---------------------------------------------------------------
@@ -149,7 +149,10 @@ class SubmissionIn(BaseModel):
     # offers it; an unset value means the problem's default language.
     language: str | None = Field(default=None, max_length=24)
     duration_seconds: int | None = Field(default=None, ge=0, le=86_400)
+    # Both tags are claims, not facts — the endpoint resolves each against a fight or
+    # duel the toy is genuinely in, and drops it otherwise.
     boss_session_id: UUID | None = None
+    duel_id: UUID | None = None
 
 
 class SubmissionAcceptedOut(BaseModel):
@@ -293,6 +296,73 @@ class BossSessionOut(BaseModel):
     rounds_cleared: int
     xp_awarded: int
     button_label: str
+
+
+# ---- duel -------------------------------------------------------------------
+# Serialised from the *caller's* point of view — `you` and `them`, never `host` and
+# `opponent`. Both sides of a duel then render from the same shape with no branching.
+class DuelActionIn(BaseModel):
+    action: str = Field(pattern="^(forfeit|cancel)$")
+
+
+class DuelPlayerOut(BaseModel):
+    toy_name: str
+    avatar_body: str
+    avatar_head: str
+    rounds_cleared: int = 0
+    # Which chips light up on this side. The count is len(), but the UI needs the set.
+    cleared_ordinals: list[int] = []
+    forfeited: bool = False
+    xp_awarded: int = 0
+
+
+class DuelRoundOut(BaseModel):
+    ordinal: int
+    slug: str
+    title: str
+    difficulty: Difficulty
+    zone: str
+    color: str
+    you_solved: bool = False
+    they_solved: bool = False
+
+
+class DuelOut(BaseModel):
+    id: UUID
+    code: str
+    status: DuelStatus
+    rounds_total: int
+    total_seconds: int
+    remaining_seconds: int
+    time_label: str
+    pct: int
+    you: DuelPlayerOut
+    them: DuelPlayerOut | None = None  # null until someone accepts
+    you_are_host: bool
+    # Empty until the duel starts — the reveal is the rows not existing yet.
+    rounds: list[DuelRoundOut] = []
+    winner: str | None = None  # "you" | "them" | "draw"
+    outcome_label: str = ""
+    invite_path: str = ""
+    # The server owns the poll cadence: 2s racing, 5s waiting, 0 once it's over.
+    poll_after_ms: int = 2000
+
+
+class DuelInviteOut(BaseModel):
+    """What a non-participant may see of a duel.
+
+    A separate schema rather than DuelOut with fields nulled: a type that *structurally
+    cannot* carry the problem set beats one that is merely supposed not to.
+    """
+
+    code: str
+    status: DuelStatus
+    host_name: str
+    host_avatar: str
+    rounds_total: int
+    total_seconds: int
+    joinable: bool
+    message: str
 
 
 # ---- dashboard --------------------------------------------------------------

@@ -49,9 +49,24 @@ class BossStatus(StrEnum):
     ABANDONED = "abandoned"
 
 
+class DuelStatus(StrEnum):
+    """A head-to-head race's place in its life.
+
+    Deliberately the same vocabulary as BossStatus, minus PAUSED — two toys share one
+    clock, so pausing is both meaningless and an obvious exploit.
+    """
+
+    WAITING = "waiting"  # the invite is out, nobody has accepted
+    ACTIVE = "active"  # both toys in, clock running
+    COMPLETED = "completed"  # someone won — on rounds or on a forfeit
+    EXPIRED = "expired"  # the invite went stale, or the clock ran out
+    ABANDONED = "abandoned"  # called off before it started, or both walked away
+
+
 class XpSource(StrEnum):
     SOLVE = "solve"
     WIND_UP = "wind_up"
     BOSS = "boss"
+    DUEL = "duel"
     ACHIEVEMENT = "achievement"
     STREAK = "streak"

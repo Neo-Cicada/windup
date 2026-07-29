@@ -1,3 +1,4 @@
+import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -10,6 +11,8 @@ from app.core.config import settings
 from app.judge.bench import bench_for, benches_for, default_language
 from app.judge.languages import UnknownLanguage
 from app.models import (
+    BossSession,
+    BossStatus,
     ChestTier,
     Problem,
     Submission,
@@ -29,11 +32,34 @@ from app.schemas.academy import (
     SubmissionIn,
     TestCaseOut,
 )
+from app.services.duels import resolve_duel_tag
 from app.services.progress import solved_problem_ids
 from app.services.serialize import problem_out
 from app.services.submissions import settle
 
 router = APIRouter(prefix="/problems", tags=["problems"])
+
+
+async def _resolve_boss_tag(db: AsyncSession, user_id, raw) -> uuid.UUID | None:
+    """A submission may only be tagged into a fight the toy is actually in.
+
+    "In" means running *or* paused — the same pair `boss.py` calls ACTIVE. Pausing has
+    never stopped a round from counting, and it shouldn't: a toy who pauses to read the
+    problem and then fixes it has still fixed it during the fight.
+
+    Like its duel counterpart this drops a bad tag rather than refusing the submission.
+    A stale tag from a tab that missed the clock is ordinary, and losing a correct solve
+    over it would be the wrong trade.
+    """
+    if raw is None:
+        return None
+    return await db.scalar(
+        select(BossSession.id).where(
+            BossSession.id == raw,
+            BossSession.user_id == user_id,
+            BossSession.status.in_((BossStatus.RUNNING, BossStatus.PAUSED)),
+        )
+    )
 
 CHEST_LABELS = {
     ChestTier.HINT: "Hint",
@@ -251,7 +277,10 @@ async def submit_problem(
     submission = Submission(
         user_id=user.id,
         problem_id=problem.id,
-        boss_session_id=payload.boss_session_id,
+        # Both tags arrive as claims. Resolving them here is what stops one toy
+        # stuffing another's fight or duel with submissions.
+        boss_session_id=await _resolve_boss_tag(db, user.id, payload.boss_session_id),
+        duel_id=await resolve_duel_tag(db, user.id, problem.id, payload.duel_id),
         code=payload.code,
         language=language,
         status=SubmissionStatus.PENDING,
