@@ -2,7 +2,7 @@
 
 FastAPI + PostgreSQL API for the Windup Academy frontend. Every screen in `frontend/`
 has an endpoint behind it: auth, the quest map, problems and their tiered help chests,
-boss battles, merit badges, analytics, the shelf of fame, and account settings.
+boss battles, duels, merit badges, analytics, the shelf of fame, and account settings.
 
 ## Stack
 
@@ -124,11 +124,48 @@ solved during that fight — submissions carrying the session's `boss_session_id
 paid out XP — and returns `409` naming the shortfall until every round is cleared.
 Because a re-solve pays nothing, old solves can't be recycled to clear a rematch.
 
+### Duels — `screens/DuelArena.tsx`
+
+Two toys, the same problems, one clock, first to fix them all.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/duels` | Open a challenge; returns a six-letter code to share |
+| `GET` | `/duels/current` | The duel this toy is in, if any |
+| `GET` | `/duels/{id}` | The ~2s poll. `404` for anyone who isn't one of the two |
+| `GET` | `/duels/by-code/{code}` | Invite preview. Deliberately cannot carry the problems |
+| `POST` | `/duels/by-code/{code}/join` | Accept — picks the rounds and starts the clock |
+| `POST` | `/duels/{id}/actions` | `{"action": "forfeit"\|"cancel"}` |
+| `GET` | `/duels` | Recent duels |
+
+Everything is serialised from the caller's own side — `you` and `them`, never host and
+opponent — and the server owns the poll cadence through `poll_after_ms` (2s racing, 5s
+waiting, 0 once it's over).
+
+Three things are worth knowing:
+
+- **The problem set doesn't exist until someone joins.** `duel_rounds` rows are written
+  in the transaction that starts the clock, which is both the reveal mechanism (a
+  waiting duel has no rounds to leak) and the first moment both solve histories are
+  known — the set is filtered against the pair, preferring problems neither has fixed.
+- **A round clears on any passed submission tagged into the duel for a problem in its
+  set** — unlike the boss, which demands a first-time solve. That rule would make a
+  race silently unwinnable for whoever had solved one of the problems before.
+- **The winner is decided by whichever poll gets there first**, from committed
+  `judged_at` timestamps, under a conditional `UPDATE ... WHERE status = 'active'`. The
+  decision is pure, so both players compute the same answer; the guard only picks who
+  writes it down. `settle()` is deliberately not involved.
+
+Winning a clean sweep pays 250 plus a speed bonus up to 100, plus 40 per round cleared;
+leading when the clock runs out wins without the speed bonus; a forfeit hands the other
+toy 60. Duel bonuses are capped per day (`DUEL_DAILY_BONUS_CAP`), which is what bounds
+two accounts duelling each other on a loop.
+
 ### Merit sash, analytics, shelf of fame
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/achievements` | All 12 badges with earned state and `"3/12"` label |
+| `GET` | `/achievements` | All 13 badges with earned state and `"3/13"` label |
 | `GET` | `/analytics` | Weekly charge chart, pattern pegboard, unaided gauge, streak grid |
 | `GET` | `/analytics/xp-history` | Charge per day (`?days=`) |
 | `GET` | `/analytics/coverage` | Per-pattern level 1-5 |
@@ -183,6 +220,8 @@ backend/
 - **XpEvent**: append-only charge ledger driving the weekly chart and streak heatmap
 - **Achievement** / **UserAchievement**: the merit sash
 - **BossSession**: timed mock rounds
+- **Duel** / **DuelRound**: a head-to-head race and its problem set. The rounds are
+  written at join time, not at create time
 
 ## The judge
 
