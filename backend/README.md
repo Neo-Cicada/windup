@@ -35,7 +35,7 @@ uv run uvicorn app.main:app --reload --port 8000
 
 ```bash
 createdb windup_test          # or set TEST_DATABASE_URL
-uv run pytest                 # 34 tests
+uv run pytest
 uv run ruff check .
 ```
 
@@ -63,7 +63,7 @@ Gameplay constants (`XP_SOLVE_UNAIDED`, `BOSS_DURATION_SECONDS`, …) also live 
 All routes are under `/api/v1` and require `Authorization: Bearer <access_token>`
 except signup, login, refresh, and `/health`.
 
-### Auth — `components/Auth.tsx`, `app/page.tsx`
+### Auth — `app/login`, `app/signup` (`components/Auth.tsx`)
 
 | Method | Path | Purpose |
 | --- | --- | --- |
@@ -190,13 +190,15 @@ current password, so a leaked access token alone can't lock the owner out.
 backend/
   app/
     main.py              # app factory, CORS, /health
-    core/                # settings, JWT + bcrypt
-    db/                  # engine, session, Base, seed data
+    core/                # settings, JWT + bcrypt, gameplay constants
+    db/                  # engine, session, Base, seed data (one module per zone)
     models/              # SQLAlchemy tables
     schemas/             # Pydantic request/response models
     api/v1/endpoints/    # one module per screen area
-    services/            # leveling, streaks, achievements, analytics
+    services/            # leveling, streaks, achievements, duels, payout
+    judge/               # language packs, sandboxed runner, grading, worker
   alembic/               # migrations
+  scripts/               # fetch the language wasm builds and toolchains
   tests/
 ```
 
